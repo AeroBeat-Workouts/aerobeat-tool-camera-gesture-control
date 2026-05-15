@@ -3,7 +3,6 @@ extends GutTest
 const README_PATH := "../README.md"
 const PLUGIN_CFG_PATH := "../plugin.cfg"
 const ADDONS_MANIFEST_PATH := "addons.jsonc"
-const EXPECTED_PLUGIN_DESCRIPTION := "Template for AeroBeat tool repos. Shared tool-lane workflows built on aerobeat-tool-core for current v1 authoring and automation work."
 
 func _read_repo_file(relative_path: String) -> String:
 	var absolute_path := ProjectSettings.globalize_path("res://%s" % relative_path)
@@ -12,28 +11,22 @@ func _read_repo_file(relative_path: String) -> String:
 	assert_true(file != null, "Expected repo file to open: %s" % absolute_path)
 	return file.get_as_text()
 
-func test_readme_keeps_v1_tool_template_truth() -> void:
+func test_readme_states_runtime_and_testbed_boundaries() -> void:
 	var readme_text := _read_repo_file(README_PATH)
-	assert_true(readme_text.contains("official template for creating **Tool** repositories"), "README should state that this repo is a Tool template")
-	assert_true(readme_text.contains("PC community first"), "README should preserve PC-first release wording")
-	assert_true(readme_text.contains("Boxing and Flow"), "README should preserve the locked v1 feature slice")
-	assert_true(readme_text.contains("camera only"), "README should preserve camera-only official gameplay input wording")
-	assert_true(readme_text.contains("gameplay-mode agnostic"), "README should preserve the tool-lane scope boundary")
-	assert_true(readme_text.contains("aerobeat-tool-core"), "README should point at the tool-core baseline")
+	assert_true(readme_text.contains("tracker-agnostic"), "README should describe the tracker-agnostic runtime boundary")
+	assert_true(readme_text.contains("MediaPipe Python is allowed only in the hidden `.testbed/`"), "README should keep MediaPipe behind the hidden testbed boundary")
+	assert_true(readme_text.contains("gesture vs mouse+WASD mode comparison"), "README should describe the proving scene comparison goal")
 
-func test_plugin_cfg_description_stays_template_specific() -> void:
+func test_plugin_cfg_matches_camera_gesture_control_identity() -> void:
 	var config := ConfigFile.new()
 	var error := config.load(ProjectSettings.globalize_path("res://%s" % PLUGIN_CFG_PATH))
 	assert_eq(error, OK, "plugin.cfg should parse cleanly")
-	assert_eq(config.get_value("plugin", "name", ""), "AeroBeat Tool Template", "plugin.cfg name should stay stable")
-	assert_eq(
-		config.get_value("plugin", "description", ""),
-		EXPECTED_PLUGIN_DESCRIPTION,
-		"plugin.cfg description should remain aligned with the template's narrow v1 tool contract"
-	)
+	assert_eq(config.get_value("plugin", "name", ""), "AeroBeat Camera Gesture Control")
+	assert_true(String(config.get_value("plugin", "description", "")).contains("contract-driven camera controller"))
+	assert_eq(config.get_value("plugin", "version", ""), "0.1.0")
 
-func test_addons_manifest_keeps_expected_dependencies_only() -> void:
+func test_addons_manifest_includes_testbed_only_mediapipe_path() -> void:
 	var manifest_text := _read_repo_file(ADDONS_MANIFEST_PATH)
-	assert_true(manifest_text.contains('"aerobeat-tool-core"'), "addons manifest should pin aerobeat-tool-core")
-	assert_true(manifest_text.contains('"gut"'), "addons manifest should pin gut for repo-local tests")
-	assert_false(manifest_text.contains('"aerobeat-core"'), "addons manifest should not reintroduce stale aerobeat-core drift")
+	assert_true(manifest_text.contains('"aerobeat-input-core"'), "addons manifest should mount input-core for the hidden proving path")
+	assert_true(manifest_text.contains('"aerobeat-input-mediapipe-python"'), "addons manifest should mount mediapipe python only for the hidden proving path")
+	assert_true(manifest_text.contains('"gut"'), "addons manifest should keep GUT for repo-local validation")

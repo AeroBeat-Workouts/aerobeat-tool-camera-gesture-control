@@ -1,67 +1,91 @@
-# AeroBeat Tool Template
+# aerobeat-tool-camera-gesture-control
 
-This is the official template for creating **Tool** repositories within the current AeroBeat v1 architecture.
+Reusable AeroBeat camera-control tool lane for turning tracked head/camera input into tunable camera motion.
 
-It should be read against the locked product direction from `aerobeat-docs`:
+## Scope
 
-- **Primary release target:** PC community first
-- **Official v1 gameplay features:** Boxing and Flow
-- **Official v1 gameplay input:** camera only
-- **Tool stance:** tools should stay workflow-oriented and gameplay-mode agnostic enough to support the current product slice without implying equal-status future gameplay/input/platform scope
-- **Tool lane ownership:** shared tool-side DTOs, progress/result models, and workflow interfaces belong in `aerobeat-tool-core`; concrete authoring/import/export/validation tooling belongs in specific `aerobeat-tool-*` repos
+This repo owns the first-pass reusable camera controller contract for the AeroBeat tool lane.
 
-## 📋 Repository Details
+- Runtime controller lives in `src/`
+- Hidden proving workbench lives in `.testbed/`
+- Runtime stays tracker-agnostic and input-core-facing
+- MediaPipe Python is allowed only in the hidden `.testbed/` dependency path via GodotEnv
 
-- **Type:** Tool template
-- **License:** **Mozilla Public License 2.0 (MPL 2.0)**
-- **Dependency contract:**
-  - `aerobeat-tool-core` — required shared tool/workflow contract
-  - additional adjacent lane/core repos only when the specific tool actually consumes them (commonly `aerobeat-content-core` or `aerobeat-asset-core`)
+## Locked runtime surface
 
-## GodotEnv development flow
+`src/camera_gesture_controller.gd` exposes the frozen first-lane API:
 
-This repo uses the AeroBeat GodotEnv package convention.
+- `set_enabled(enabled)`
+- `set_control_mode(mode)`
+- `attach_camera(camera)` / `detach_camera()`
+- `attach_input_source(input_source)` / `detach_input_source()`
+- `apply_profile(profile)` / `get_profile()`
+- `load_profile(path)` / `save_profile(path)`
+- `get_debug_state()`
 
-- Canonical dev/test manifest: `.testbed/addons.jsonc`
-- Installed dev/test addons: `.testbed/addons/`
-- GodotEnv cache: `.testbed/.addons/`
-- Hidden workbench project: `.testbed/project.godot`
-- Repo-local unit tests: `.testbed/tests/`
+Signals:
 
-The repo root remains the package/published boundary for downstream consumers. Day-to-day development, debugging, and validation happen from the hidden `.testbed/` workbench using the pinned OpenClaw toolchain: Godot `4.6.2 stable standard`.
+- `control_mode_changed(mode)`
+- `tracking_state_changed(state)`
+- `profile_loaded(profile)`
+- `profile_saved(path)`
 
-### Restore dev/test dependencies
+Control modes:
 
-From the repo root:
+- `gesture`
+- `mouse_wasd`
+- `disabled`
+
+## Profile schema
+
+Profiles are JSON dictionaries with a versioned first-lane schema that includes:
+
+- `version`
+- `mode`
+- `invert_x`, `invert_y`
+- `look_sensitivity_x`, `look_sensitivity_y`
+- `translation_sensitivity_x`, `translation_sensitivity_y`, `translation_sensitivity_z`
+- `max_yaw_degrees`, `max_pitch_degrees`, `max_roll_degrees`
+- `max_translation_meters`
+- `smoothing`
+- `deadzone`
+- `recenter_speed`
+- `tracking_confidence_threshold`
+- `freeze_on_tracking_loss`
+- `sample_source`
+
+## Hidden proving testbed
+
+The `.testbed/` workbench provides:
+
+- gesture vs mouse+WASD mode comparison
+- left-panel tuning controls for the runtime profile
+- JSON save/load round-trip buttons
+- MediaPipe-Python-via-GodotEnv integration when that addon mount is available
+- fake-input fallback when MediaPipe is not mounted or not running
+
+## Dev/test flow
+
+Restore hidden testbed dependencies:
 
 ```bash
 cd .testbed
 godotenv addons install
 ```
 
-That restores this repo's current dev/test manifest into `.testbed/addons/`. Canonically, Tool templates should keep the baseline manifest narrow: `aerobeat-tool-core` plus test-only tooling.
-
-### Open the workbench
-
-From the repo root:
+Open the proving workbench:
 
 ```bash
 godot --editor --path .testbed
 ```
 
-Use this `.testbed/` project as the canonical direct-development and bugfinding surface for tool-template work.
-
-### Import smoke check
-
-From the repo root:
+Headless import smoke check:
 
 ```bash
 godot --headless --path .testbed --import
 ```
 
-### Run unit tests
-
-From the repo root:
+Run repo-local tests:
 
 ```bash
 godot --headless --path .testbed --script addons/gut/gut_cmdln.gd \
@@ -69,12 +93,3 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd \
   -ginclude_subdirs \
   -gexit
 ```
-
-### Validation notes
-
-- `.testbed/addons.jsonc` is the committed dev/test dependency contract.
-- The canonical template manifest for this repo is `aerobeat-tool-core` + `gut`.
-- `aerobeat-tool-core` is currently pinned to `main` intentionally because the repo does not yet have release tags; switch to a tag once tagged releases exist.
-- If a concrete tool needs adjacent lane repos, add them intentionally rather than restoring a universal `aerobeat-core` baseline.
-- Repo-local unit tests live under `.testbed/tests/` and currently validate repo metadata plus the template stub contract.
-- The current package shape is consumed from the repo root (`subfolder: "/"`) for downstream installs.

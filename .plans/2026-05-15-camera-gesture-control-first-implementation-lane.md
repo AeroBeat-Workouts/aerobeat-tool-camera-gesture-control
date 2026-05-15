@@ -39,7 +39,7 @@ This lane should also lock a clean tuning/profile story. Multiple key/value pair
 
 ### Task 1: Inspect repo/template structure and lock the first-lane camera-control contracts
 
-**Bead ID:** `Pending`  
+**Bead ID:** `aerobeat-tool-camera-gesture-control-k5j`
 **SubAgent:** `primary` (for `research` workflow role)  
 **Role:** `research`  
 **References:** `REF-01`, `REF-02`, `REF-04`, `REF-05`  
@@ -51,15 +51,15 @@ This lane should also lock a clean tuning/profile story. Multiple key/value pair
 **Files Created/Deleted/Modified:**
 - Contract notes only
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending execution.
+**Results:** Claimed `aerobeat-tool-camera-gesture-control-k5j`, inspected the repo template, the input-core provider contract, and the MediaPipe Python addon/testbed structure. Locked the runtime boundary to duck-type against an input-provider-style node (`is_tracking`, `get_tracking_confidence`, `get_head_position`, optional `get_head_velocity` / `get_head_rotation`) so the reusable runtime controller can stay tracker-agnostic. Locked the `.testbed/` proving UI to expose control mode switching, enable/disable, invert toggles, sensitivity/clamp/smoothing/deadzone/recenter/confidence/freeze/sample-source fields, plus JSON save/load actions. Confirmed the hidden testbed should carry the MediaPipe-specific mount via GodotEnv rather than `src/` importing it directly.
 
 ---
 
 ### Task 2: Implement the runtime camera gesture controller in `/src/`
 
-**Bead ID:** `Pending`  
+**Bead ID:** `aerobeat-tool-camera-gesture-control-4t7`
 **SubAgent:** `primary` (for `coder` workflow role)  
 **Role:** `coder`  
 **References:** `REF-01`, `REF-03`, `REF-05`  
@@ -71,15 +71,15 @@ This lane should also lock a clean tuning/profile story. Multiple key/value pair
 **Files Created/Deleted/Modified:**
 - `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-camera-gesture-control/src/*`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending execution.
+**Results:** Claimed `aerobeat-tool-camera-gesture-control-4t7` and implemented `src/camera_gesture_controller.gd` as the reusable first-lane runtime. The controller stays tracker-agnostic by consuming only a provider-like node surface (`is_tracking`, `get_head_position`, `get_tracking_confidence`, optional velocity/rotation methods) and never imports MediaPipe or input-core directly. It now owns the locked runtime API, mode switching for `gesture` / `mouse_wasd` / `disabled`, profile normalization, JSON save/load, camera attach/detach, confidence-gated tracking state, smoothing/recenter/clamp behavior, and debug-state reporting. `src/AeroToolManager.gd` was also updated to expose controller creation as the repo-local tool entrypoint.
 
 ---
 
 ### Task 3: Build the hidden `.testbed/` comparison scene using MediaPipe Python via GodotEnv
 
-**Bead ID:** `Pending`  
+**Bead ID:** `aerobeat-tool-camera-gesture-control-7dz`
 **SubAgent:** `primary` (for `coder` workflow role)  
 **Role:** `coder`  
 **References:** `REF-01`, `REF-04`, `REF-05`  
@@ -96,15 +96,15 @@ This lane should also lock a clean tuning/profile story. Multiple key/value pair
 - `.testbed/scripts/*`
 - `.testbed/assets/*` only as needed for proving the camera motion visually
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending execution.
+**Results:** Claimed `aerobeat-tool-camera-gesture-control-7dz` and turned the hidden testbed into a real proving surface. The `.testbed/addons.jsonc` manifest now mounts `aerobeat-input-core` and `aerobeat-input-mediapipe-python` strictly for the hidden workbench path. `camera_gesture_testbed.tscn` + `camera_gesture_testbed.gd` provide a gesture-vs-mouse/WASD comparison scene with a left tuning panel, JSON profile save/load buttons, a live 3D comparison space, and runtime debug output. The testbed prefers MediaPipe Python when the GodotEnv addon mount is present and starts cleanly, but it deliberately falls back to `fake_camera_input_source.gd` so the proving scene still works when MediaPipe is unavailable.
 
 ---
 
 ### Task 4: Add repo-local validation and audit the lane
 
-**Bead ID:** `Pending`  
+**Bead ID:** `aerobeat-tool-camera-gesture-control-9pf`
 **SubAgent:** `primary` (for `qa` / `auditor` workflow roles)  
 **Role:** `qa`  
 **References:** `REF-01`, `REF-02`  
@@ -117,9 +117,9 @@ This lane should also lock a clean tuning/profile story. Multiple key/value pair
 - `.testbed/tests/*` if needed
 - `.plans/2026-05-15-camera-gesture-control-first-implementation-lane.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending execution.
+**Results:** Claimed `aerobeat-tool-camera-gesture-control-9pf` and added focused repo-local validation around the new controller and proving scene. Validation now covers repo metadata/docs, controller defaults/schema, provider-boundary attachment rules, mode switching, confidence-gated tracking, clamp behavior, JSON save/load round-trip, and scene loadability. Manual/runtime smoke checks included `godotenv addons install`, `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`, and `godot --headless --path .testbed --quit-after 2`. Audit result: the lane stayed contract-driven; MediaPipe remains isolated to the hidden `.testbed/` dependency path and the reusable runtime core consumes only a provider-like camera-input surface.
 
 ---
 

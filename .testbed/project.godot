@@ -2,8 +2,9 @@ config_version=5
 
 [application]
 
-config/name="AeroBeat Tool Testbed"
+config/name="AeroBeat Tool Camera Gesture Control Testbed"
 config/features=PackedStringArray("4.6", "Forward Plus")
+run/main_scene="res://scenes/camera_gesture_testbed.tscn"
 
 [editor_plugins]
 
