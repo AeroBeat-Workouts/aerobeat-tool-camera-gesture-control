@@ -209,16 +209,16 @@ The proving scene should make it easy to answer:
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Implementation plan for the `aerobeat-tool-camera-gesture-control` lane, now updated to the frozen shared runtime API, control modes, and JSON tuning schema.
+**What We Built:** A reusable first-lane camera gesture controller plus a hidden proving workbench for comparing gesture control against mouse/WASD. The runtime now exposes the locked API/signals/profile schema from `src/camera_gesture_controller.gd`, `AeroToolManager` can mint controller instances, and the `.testbed/` now contains a left-panel tuning UI, JSON save/load profile workflow, live 3D comparison scene, MediaPipe-via-GodotEnv hookup, and a fake-source fallback for local proofing when MediaPipe is unavailable.
 
-**Reference Check:** Scoped against `REF-01` through `REF-06` and aligned to the umbrella contract lock for control modes, JSON-backed tunables, and the input-core adapter boundary.
+**Reference Check:** `REF-01` satisfied via the frozen API/signals/control-mode/schema contract; `REF-02` / `REF-03` satisfied by keeping the runtime reusable and fallback-aware; `REF-04` satisfied by isolating MediaPipe usage to `.testbed/` GodotEnv mounts; `REF-05` satisfied by keeping the runtime input-provider-facing instead of tracker-specific; `REF-06` informed the hidden proving-scene layout and testbed pattern.
 
 **Commits:**
-- Pending commit
+- `c190a41` - Implement camera gesture control lane
 
-**Lessons Learned:** The camera-control repo should stay focused on translating tracked input into tunable camera behavior, with the frozen API and JSON schema keeping the reusable runtime core from collapsing into tracker-specific code.
+**Lessons Learned:** Keeping the reusable controller on a tiny provider-like surface made it straightforward to prove behavior with both a fake source and the MediaPipe addon without dragging tracker/runtime coupling into `src/`. The hidden testbed pattern is also a good fit for this kind of “tune it live, save JSON, compare feels” tool lane.
 
 ---
 
