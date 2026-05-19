@@ -2,7 +2,7 @@ extends GutTest
 
 func test_tool_manager_creates_controller_and_bumps_repo_version() -> void:
 	var manager := AeroToolManager.new()
-	assert_eq(AeroToolManager.VERSION, "0.2.0", "Manager version should match the YAML profile slice")
+	assert_eq(AeroToolManager.VERSION, "0.3.0", "Manager version should match the upgraded harness slice")
 	assert_eq(
 		manager.get_default_camera_gesture_profile_path(),
 		"res://assets/profiles/camera_gesture/default_v1.camera_gesture.yaml",

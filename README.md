@@ -80,9 +80,12 @@ This keeps config identity traceable without moving camera ownership into the pr
 
 The `.testbed/` workbench provides:
 
+- a 16:9 harness shape with left config/debug controls and a right 3D world preview
+- a bottom-left MediaPipe/video + tracking inset with an honest overlay-only fallback when the mounted camera-view seam is not live
 - gesture vs mouse+WASD mode comparison
-- left-panel tuning controls for the runtime profile
-- YAML-first save/load round-trips for profile experimentation
+- YAML-first profile load / reload / export actions for profile experimentation
+- trace-capture scaffolding that exports run manifests, JSONL frame traces, Markdown summaries, and a resolved YAML profile snapshot
+- fixture-key / prerecorded-video / sidecar-path fields so the later replay-oracle slice can reuse the same surface
 - MediaPipe-Python-via-GodotEnv integration when that addon mount is available
 - fake-input fallback when MediaPipe is not mounted or not running
 

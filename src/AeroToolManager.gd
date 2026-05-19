@@ -3,7 +3,7 @@ extends Node
 
 signal initialized
 
-const VERSION: String = "0.2.0"
+const VERSION: String = "0.3.0"
 const CONTROLLER_SCRIPT := preload("res://src/camera_gesture_controller.gd")
 const DEFAULT_CAMERA_GESTURE_PROFILE_PATH := "res://assets/profiles/camera_gesture/default_v1.camera_gesture.yaml"
 
