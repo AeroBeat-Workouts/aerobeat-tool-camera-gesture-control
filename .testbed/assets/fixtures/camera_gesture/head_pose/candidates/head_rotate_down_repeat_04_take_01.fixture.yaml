@@ -1,0 +1,41 @@
+schema_version: 1
+fixture_id: head_rotate_down_repeat_04_take_01
+family: camera_gesture
+feature: head_pose
+fixture_stage: candidate
+video:
+  path: ./head_rotate_down_repeat_04_take_01.mp4
+intent:
+  label: rotate_pitch_down
+  repetition_hint: 4
+tuning_hints:
+  preferred_sample_source: head_rotation
+  dominant_trace_fields: [current_rotation_radians, target_rotation_radians, tracking_state, active_profile]
+  confirm_numeric_sign_from_first_capture: true
+expected_controller:
+  primary_channel: rotation
+  primary_axis: pitch
+  semantic_direction: down
+  dominance_note: "Pitch-down rotation should dominate; translation may move slightly, but rotation should be the main truth signal."
+notes:
+  - candidate scaffold for future edited clip sync
+  - filename suggests four repeated downward head-rotation reps
+  - exact edited timing windows are intentionally left unknown until Derrick syncs the trimmed clip
+  - use the commented timing skeleton below after the first real replay capture; do not assume evenly spaced reps
+# expected_windows:
+#   - name: rep_01
+#     start_ms: TODO
+#     end_ms: TODO
+#   - name: rep_02
+#     start_ms: TODO
+#     end_ms: TODO
+#   - name: rep_03
+#     start_ms: TODO
+#     end_ms: TODO
+#   - name: rep_04
+#     start_ms: TODO
+#     end_ms: TODO
+# review_todos:
+#   - confirm pitch-down rotation is trace-dominant and any translation drift stays secondary
+#   - confirm tracking stays active for the intended motion windows
+#   - tighten timing windows only after the edited clip boundaries are final

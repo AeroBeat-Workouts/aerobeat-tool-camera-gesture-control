@@ -1,0 +1,41 @@
+schema_version: 1
+fixture_id: head_move_forward_repeat_04_take_01
+family: camera_gesture
+feature: head_pose
+fixture_stage: candidate
+video:
+  path: ./head_move_forward_repeat_04_take_01.mp4
+intent:
+  label: translate_forward
+  repetition_hint: 4
+tuning_hints:
+  preferred_sample_source: head_position
+  dominant_trace_fields: [current_translation, target_translation, tracking_state, active_profile]
+  confirm_numeric_sign_from_first_capture: true
+expected_controller:
+  primary_channel: translation
+  primary_axis: z
+  semantic_direction: forward
+  dominance_note: "Depth/forward translation should dominate each rep; confirm the runtime numeric sign from the first captured trace instead of assuming it here."
+notes:
+  - candidate scaffold for future edited clip sync
+  - filename suggests four repeated forward head-move reps
+  - exact edited timing windows are intentionally left unknown until Derrick syncs the trimmed clip
+  - use the commented timing skeleton below after the first real replay capture; do not assume evenly spaced reps
+# expected_windows:
+#   - name: rep_01
+#     start_ms: TODO
+#     end_ms: TODO
+#   - name: rep_02
+#     start_ms: TODO
+#     end_ms: TODO
+#   - name: rep_03
+#     start_ms: TODO
+#     end_ms: TODO
+#   - name: rep_04
+#     start_ms: TODO
+#     end_ms: TODO
+# review_todos:
+#   - confirm z translation dominance and whether the repo trace uses positive or negative z for forward motion
+#   - confirm tracking stays active for the intended motion windows
+#   - tighten timing windows only after the edited clip boundaries are final
