@@ -18,24 +18,24 @@ expected_controller:
   semantic_direction: backward
   dominance_note: "Depth/backward translation should dominate each rep; confirm the runtime numeric sign from the first captured trace instead of assuming it here."
 notes:
-  - candidate scaffold for future edited clip sync
-  - filename suggests four repeated backward head-move reps
-  - exact edited timing windows are intentionally left unknown until Derrick syncs the trimmed clip
-  - use the commented timing skeleton below after the first real replay capture; do not assume evenly spaced reps
-# expected_windows:
-#   - name: rep_01
-#     start_ms: TODO
-#     end_ms: TODO
-#   - name: rep_02
-#     start_ms: TODO
-#     end_ms: TODO
-#   - name: rep_03
-#     start_ms: TODO
-#     end_ms: TODO
-#   - name: rep_04
-#     start_ms: TODO
-#     end_ms: TODO
-# review_todos:
-#   - confirm z translation dominance and whether the repo trace uses positive or negative z for backward motion
-#   - confirm tracking stays active for the intended motion windows
-#   - tighten timing windows only after the edited clip boundaries are final
+  - candidate timing pass authored from 2026-05-19 manual visual review of the synced clip
+  - windows below are intentionally coarse human-authored motion spans, not frame-exact labels
+  - timing estimates were roughed in from 0.5s timestamped contact sheets and can be nudged after first real replay/trace capture
+  - translation.z sign is still intentionally unclaimed until the first real trace export confirms repo/runtime polarity
+expected_windows:
+  - name: rep_01
+    start_ms: 1500
+    end_ms: 3000
+  - name: rep_02
+    start_ms: 4000
+    end_ms: 5500
+  - name: rep_03
+    start_ms: 6000
+    end_ms: 7500
+  - name: rep_04
+    start_ms: 10000
+    end_ms: 11500
+review_todos:
+  - confirm the trace sign for backward translation.z on the first prerecorded replay/export pass
+  - confirm tracking stays active through each rep and does not split the motion into smaller z segments
+  - if Derrick trims the clip boundaries again, slide these coarse windows instead of tightening them prematurely

@@ -18,24 +18,23 @@ expected_controller:
   semantic_direction: right
   dominance_note: "Yaw-right rotation should dominate; translation may move slightly, but rotation should be the main truth signal."
 notes:
-  - candidate scaffold for future edited clip sync
-  - filename suggests four repeated rightward head-rotation reps
-  - exact edited timing windows are intentionally left unknown until Derrick syncs the trimmed clip
-  - use the commented timing skeleton below after the first real replay capture; do not assume evenly spaced reps
-# expected_windows:
-#   - name: rep_01
-#     start_ms: TODO
-#     end_ms: TODO
-#   - name: rep_02
-#     start_ms: TODO
-#     end_ms: TODO
-#   - name: rep_03
-#     start_ms: TODO
-#     end_ms: TODO
-#   - name: rep_04
-#     start_ms: TODO
-#     end_ms: TODO
-# review_todos:
-#   - confirm yaw-right rotation is trace-dominant and any translation drift stays secondary
-#   - confirm tracking stays active for the intended motion windows
-#   - tighten timing windows only after the edited clip boundaries are final
+  - candidate timing pass authored from 2026-05-19 manual visual review of the synced clip
+  - windows below are intentionally coarse human-authored motion spans, not frame-exact labels
+  - timing estimates were roughed in from 0.5s timestamped contact sheets and can be nudged after first real replay/trace capture
+expected_windows:
+  - name: rep_01
+    start_ms: 500
+    end_ms: 2000
+  - name: rep_02
+    start_ms: 4000
+    end_ms: 6000
+  - name: rep_03
+    start_ms: 8000
+    end_ms: 10000
+  - name: rep_04
+    start_ms: 12000
+    end_ms: 13500
+review_todos:
+  - confirm yaw-right rotation is trace-dominant and any translation drift stays secondary
+  - confirm tracking stays active for the intended motion windows once prerecorded replay is wired
+  - slide the windows if the edited clip shifts; do not fake tighter precision than the current visual pass supports
