@@ -7,6 +7,7 @@ Reusable AeroBeat camera-control tool lane for turning tracked head/camera input
 This repo owns the first-pass reusable camera controller contract for the AeroBeat tool lane.
 
 - Runtime controller lives in `src/`
+- Durable authored tuning profiles live in `assets/profiles/camera_gesture/`
 - Hidden proving workbench lives in `.testbed/`
 - Runtime stays tracker-agnostic and input-core-facing
 - MediaPipe Python is allowed only in the hidden `.testbed/` dependency path via GodotEnv
@@ -36,23 +37,44 @@ Control modes:
 - `mouse_wasd`
 - `disabled`
 
-## Profile schema
+## Profile contract
 
-Profiles are JSON dictionaries with a versioned first-lane schema that includes:
+Profiles are now authored primarily as YAML documents under:
 
-- `version`
-- `mode`
-- `invert_x`, `invert_y`
-- `look_sensitivity_x`, `look_sensitivity_y`
-- `translation_sensitivity_x`, `translation_sensitivity_y`, `translation_sensitivity_z`
-- `max_yaw_degrees`, `max_pitch_degrees`, `max_roll_degrees`
-- `max_translation_meters`
-- `smoothing`
-- `deadzone`
-- `recenter_speed`
-- `tracking_confidence_threshold`
-- `freeze_on_tracking_loss`
-- `sample_source`
+- `assets/profiles/camera_gesture/default_v1.camera_gesture.yaml`
+
+The v1 document owns developer-editable tuning only:
+
+- schema identity/version
+- profile identity/display metadata
+- control mode default
+- tracking gates and sample-source choice
+- rotation/translation sensitivities and bounds
+- smoothing, deadzone, and recenter behavior
+- lightweight debug trace intent
+
+The YAML profile does **not** own the active `Camera3D`. Scene-specific camera targeting still comes from the runtime host via `attach_camera(camera)`.
+
+See `docs/camera_gesture_profile_contract.md` for the durable v1 contract.
+
+### Compatibility note
+
+- YAML is the durable checked-in authored format.
+- Legacy flat JSON profile dictionaries are still loadable for compatibility.
+- `save_profile(path)` writes YAML for `.yaml` / `.yml` targets and flat JSON for `.json` targets.
+
+## Debug state
+
+`get_debug_state()` exposes both the resolved runtime profile and the active profile identity metadata, including:
+
+- `active_profile.profile_id`
+- `active_profile.source_path`
+- `active_profile.source_format`
+- `active_profile.source_hash`
+- `active_profile.schema_id`
+- `active_profile.schema_version`
+
+This keeps config identity traceable without moving camera ownership into the profile.
 
 ## Hidden proving testbed
 
@@ -60,7 +82,7 @@ The `.testbed/` workbench provides:
 
 - gesture vs mouse+WASD mode comparison
 - left-panel tuning controls for the runtime profile
-- JSON save/load round-trip buttons
+- YAML-first save/load round-trips for profile experimentation
 - MediaPipe-Python-via-GodotEnv integration when that addon mount is available
 - fake-input fallback when MediaPipe is not mounted or not running
 

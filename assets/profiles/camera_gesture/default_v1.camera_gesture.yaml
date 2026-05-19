@@ -1,0 +1,41 @@
+# Camera gesture profile v1.
+# This file is the durable authored tuning contract for the reusable runtime.
+# Scene-specific concerns like which Camera3D is active stay outside YAML and are
+# provided by the runtime host when the controller is attached.
+
+schema:
+  id: camera_gesture_profile
+  version: 1
+
+profile_id: default_v1
+display_name: Default v1
+description: Baseline parallax tuning for the first camera-gesture runtime slice.
+mode: gesture
+
+tracking:
+  sample_source: head_position
+  confidence_threshold: 0.45
+  freeze_on_tracking_loss: true
+
+response:
+  invert_x: false
+  invert_y: false
+  smoothing: 0.2
+  deadzone: 0.03
+  recenter_speed: 1.8
+
+rotation:
+  look_sensitivity_x: 1.0
+  look_sensitivity_y: 1.0
+  max_yaw_degrees: 20.0
+  max_pitch_degrees: 12.0
+  max_roll_degrees: 4.0
+
+translation:
+  sensitivity_x: 1.0
+  sensitivity_y: 0.6
+  sensitivity_z: 0.4
+  max_meters: [0.6, 0.35, 0.45]
+
+debug:
+  trace_level: basic

@@ -6,7 +6,13 @@ signal tracking_state_changed(state: Dictionary)
 signal profile_loaded(profile: Dictionary)
 signal profile_saved(path: String)
 
-const PROFILE_VERSION := 1
+const PROFILE_SCHEMA_ID := "camera_gesture_profile"
+const PROFILE_SCHEMA_VERSION := 1
+const DEFAULT_PROFILE_ID := "default_v1"
+const DEFAULT_PROFILE_DISPLAY_NAME := "Default v1"
+const DEFAULT_PROFILE_DESCRIPTION := "Baseline parallax tuning for the first camera-gesture runtime slice."
+const DEFAULT_DEBUG_TRACE_LEVEL := "basic"
+
 const CONTROL_MODE_GESTURE := "gesture"
 const CONTROL_MODE_MOUSE_WASD := "mouse_wasd"
 const CONTROL_MODE_DISABLED := "disabled"
@@ -20,8 +26,13 @@ const SUPPORTED_SAMPLE_SOURCES := [
 	"head_velocity",
 	"head_rotation",
 ]
+const SUPPORTED_DEBUG_TRACE_LEVELS := [
+	"off",
+	"basic",
+	"verbose",
+]
 const DEFAULT_PROFILE := {
-	"version": PROFILE_VERSION,
+	"version": PROFILE_SCHEMA_VERSION,
 	"mode": CONTROL_MODE_GESTURE,
 	"invert_x": false,
 	"invert_y": false,
@@ -40,6 +51,7 @@ const DEFAULT_PROFILE := {
 	"tracking_confidence_threshold": 0.45,
 	"freeze_on_tracking_loss": true,
 	"sample_source": "head_position",
+	"debug_trace_level": DEFAULT_DEBUG_TRACE_LEVEL,
 }
 
 var _enabled := true
@@ -56,6 +68,16 @@ var _tracking_state := {
 	"freeze_on_tracking_loss": DEFAULT_PROFILE["freeze_on_tracking_loss"],
 	"mode": DEFAULT_PROFILE["mode"],
 }
+var _active_profile_info := {
+	"profile_id": DEFAULT_PROFILE_ID,
+	"display_name": DEFAULT_PROFILE_DISPLAY_NAME,
+	"description": DEFAULT_PROFILE_DESCRIPTION,
+	"source_path": "",
+	"source_format": "inline",
+	"source_hash": "",
+	"schema_id": PROFILE_SCHEMA_ID,
+	"schema_version": PROFILE_SCHEMA_VERSION,
+}
 
 var _rest_position := Vector3.ZERO
 var _rest_basis := Basis.IDENTITY
@@ -66,6 +88,7 @@ var _target_translation := Vector3.ZERO
 var _mouse_look_delta := Vector2.ZERO
 
 func _ready() -> void:
+	_ensure_active_profile_info_hash()
 	set_process(true)
 
 func _process(delta: float) -> void:
@@ -140,10 +163,9 @@ func detach_input_source() -> void:
 	_emit_tracking_state_if_changed(true)
 
 func apply_profile(profile: Dictionary) -> void:
-	_profile = _normalize_profile(profile)
-	_enabled = true
-	set_control_mode(String(_profile.get("mode", CONTROL_MODE_GESTURE)))
-	_emit_tracking_state_if_changed(true)
+	var profile_document := _coerce_profile_document(profile)
+	var serialized_document := _serialize_profile_document(profile_document, "yaml")
+	_apply_profile_document(profile_document, "", "inline", serialized_document)
 
 func get_profile() -> Dictionary:
 	return _profile.duplicate(true)
@@ -153,12 +175,14 @@ func load_profile(path: String) -> Dictionary:
 	if file == null:
 		push_error("CameraGestureController: failed to open profile for reading: %s" % path)
 		return {}
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
-	if not parsed is Dictionary:
-		push_error("CameraGestureController: profile JSON was not a dictionary: %s" % path)
+	var file_text := file.get_as_text()
+	var source_format := _detect_profile_format_from_path(path)
+	var profile_document := _deserialize_profile_document(file_text, source_format)
+	if profile_document.is_empty():
+		push_error("CameraGestureController: failed to parse profile: %s" % path)
 		return {}
 	_last_profile_path = path
-	apply_profile(parsed)
+	_apply_profile_document(profile_document, path, source_format, file_text)
 	var loaded_profile := get_profile()
 	profile_loaded.emit(loaded_profile)
 	return loaded_profile
@@ -168,13 +192,22 @@ func save_profile(path: String) -> Dictionary:
 	if file == null:
 		push_error("CameraGestureController: failed to open profile for writing: %s" % path)
 		return {}
-	var profile := get_profile()
-	file.store_string(JSON.stringify(profile, "\t"))
+	var source_format := _detect_profile_format_from_path(path)
+	var profile_document := _build_profile_document(_profile, _active_profile_info)
+	var serialized_document := _serialize_profile_document(profile_document, source_format)
+	if serialized_document.is_empty():
+		push_error("CameraGestureController: failed to serialize profile: %s" % path)
+		return {}
+	file.store_string(serialized_document)
 	_last_profile_path = path
+	_active_profile_info = _build_active_profile_info(profile_document, path, source_format, serialized_document)
 	profile_saved.emit(path)
 	return {
 		"path": path,
-		"profile": profile,
+		"format": source_format,
+		"profile": get_profile(),
+		"profile_document": profile_document,
+		"active_profile": _active_profile_info.duplicate(true),
 	}
 
 func get_debug_state() -> Dictionary:
@@ -186,6 +219,7 @@ func get_debug_state() -> Dictionary:
 		"input_source_attached": _input_source != null,
 		"input_source_path": str(_input_source.get_path()) if _input_source != null else "",
 		"profile": get_profile(),
+		"active_profile": _active_profile_info.duplicate(true),
 		"tracking_state": _tracking_state.duplicate(true),
 		"current_rotation_radians": _current_rotation,
 		"current_translation": _current_translation,
@@ -380,7 +414,7 @@ func _normalize_profile(profile: Dictionary) -> Dictionary:
 	for key_variant: Variant in profile.keys():
 		var key := String(key_variant)
 		normalized[key] = profile[key_variant]
-	normalized["version"] = int(normalized.get("version", PROFILE_VERSION))
+	normalized["version"] = int(normalized.get("version", PROFILE_SCHEMA_VERSION))
 	var mode := String(normalized.get("mode", CONTROL_MODE_GESTURE)).to_lower()
 	if not VALID_CONTROL_MODES.has(mode):
 		mode = CONTROL_MODE_GESTURE
@@ -389,6 +423,10 @@ func _normalize_profile(profile: Dictionary) -> Dictionary:
 	if not SUPPORTED_SAMPLE_SOURCES.has(sample_source):
 		sample_source = "head_position"
 	normalized["sample_source"] = sample_source
+	var debug_trace_level := String(normalized.get("debug_trace_level", DEFAULT_DEBUG_TRACE_LEVEL)).to_lower()
+	if not SUPPORTED_DEBUG_TRACE_LEVELS.has(debug_trace_level):
+		debug_trace_level = DEFAULT_DEBUG_TRACE_LEVEL
+	normalized["debug_trace_level"] = debug_trace_level
 	normalized["invert_x"] = bool(normalized.get("invert_x", false))
 	normalized["invert_y"] = bool(normalized.get("invert_y", false))
 	normalized["look_sensitivity_x"] = float(normalized.get("look_sensitivity_x", 1.0))
@@ -451,3 +489,315 @@ func _call_quaternion(target: Node, method_name: String) -> Quaternion:
 		return Quaternion.IDENTITY
 	var value: Variant = target.call(method_name)
 	return value if value is Quaternion else Quaternion.IDENTITY
+
+func _coerce_profile_document(profile: Dictionary) -> Dictionary:
+	if _looks_like_profile_document(profile):
+		return _ensure_profile_document_shape(profile)
+	return _build_profile_document_from_flat(profile)
+
+func _looks_like_profile_document(profile: Dictionary) -> bool:
+	return profile.has("schema") or profile.has("tracking") or profile.has("response") or profile.has("rotation") or profile.has("translation")
+
+func _ensure_profile_document_shape(profile_document: Dictionary) -> Dictionary:
+	var resolved_profile := _normalize_profile(_flatten_profile_document(profile_document))
+	var metadata := _extract_profile_metadata_from_document(profile_document)
+	return _build_profile_document(resolved_profile, metadata)
+
+func _build_profile_document_from_flat(profile: Dictionary) -> Dictionary:
+	var resolved_profile := _normalize_profile(profile)
+	var metadata := {
+		"profile_id": String(profile.get("profile_id", DEFAULT_PROFILE_ID)),
+		"display_name": String(profile.get("display_name", DEFAULT_PROFILE_DISPLAY_NAME)),
+		"description": String(profile.get("description", DEFAULT_PROFILE_DESCRIPTION)),
+		"schema_id": String(profile.get("schema_id", PROFILE_SCHEMA_ID)),
+		"schema_version": int(profile.get("schema_version", PROFILE_SCHEMA_VERSION)),
+	}
+	return _build_profile_document(resolved_profile, metadata)
+
+func _build_profile_document(profile: Dictionary, metadata: Dictionary = {}) -> Dictionary:
+	return {
+		"schema": {
+			"id": String(metadata.get("schema_id", PROFILE_SCHEMA_ID)),
+			"version": int(metadata.get("schema_version", profile.get("version", PROFILE_SCHEMA_VERSION))),
+		},
+		"profile_id": String(metadata.get("profile_id", DEFAULT_PROFILE_ID)),
+		"display_name": String(metadata.get("display_name", DEFAULT_PROFILE_DISPLAY_NAME)),
+		"description": String(metadata.get("description", DEFAULT_PROFILE_DESCRIPTION)),
+		"mode": String(profile.get("mode", CONTROL_MODE_GESTURE)),
+		"tracking": {
+			"sample_source": String(profile.get("sample_source", "head_position")),
+			"confidence_threshold": float(profile.get("tracking_confidence_threshold", 0.45)),
+			"freeze_on_tracking_loss": bool(profile.get("freeze_on_tracking_loss", true)),
+		},
+		"response": {
+			"invert_x": bool(profile.get("invert_x", false)),
+			"invert_y": bool(profile.get("invert_y", false)),
+			"smoothing": float(profile.get("smoothing", 0.2)),
+			"deadzone": float(profile.get("deadzone", 0.03)),
+			"recenter_speed": float(profile.get("recenter_speed", 1.8)),
+		},
+		"rotation": {
+			"look_sensitivity_x": float(profile.get("look_sensitivity_x", 1.0)),
+			"look_sensitivity_y": float(profile.get("look_sensitivity_y", 1.0)),
+			"max_yaw_degrees": float(profile.get("max_yaw_degrees", 20.0)),
+			"max_pitch_degrees": float(profile.get("max_pitch_degrees", 12.0)),
+			"max_roll_degrees": float(profile.get("max_roll_degrees", 4.0)),
+		},
+		"translation": {
+			"sensitivity_x": float(profile.get("translation_sensitivity_x", 1.0)),
+			"sensitivity_y": float(profile.get("translation_sensitivity_y", 0.6)),
+			"sensitivity_z": float(profile.get("translation_sensitivity_z", 0.4)),
+			"max_meters": profile.get("max_translation_meters", [0.6, 0.35, 0.45]).duplicate(true),
+		},
+		"debug": {
+			"trace_level": String(profile.get("debug_trace_level", DEFAULT_DEBUG_TRACE_LEVEL)),
+		},
+	}
+
+func _flatten_profile_document(profile_document: Dictionary) -> Dictionary:
+	var schema: Dictionary = profile_document.get("schema", {}) if profile_document.get("schema", {}) is Dictionary else {}
+	var tracking: Dictionary = profile_document.get("tracking", {}) if profile_document.get("tracking", {}) is Dictionary else {}
+	var response: Dictionary = profile_document.get("response", {}) if profile_document.get("response", {}) is Dictionary else {}
+	var rotation: Dictionary = profile_document.get("rotation", {}) if profile_document.get("rotation", {}) is Dictionary else {}
+	var translation: Dictionary = profile_document.get("translation", {}) if profile_document.get("translation", {}) is Dictionary else {}
+	var debug: Dictionary = profile_document.get("debug", {}) if profile_document.get("debug", {}) is Dictionary else {}
+	return {
+		"version": int(schema.get("version", profile_document.get("version", PROFILE_SCHEMA_VERSION))),
+		"mode": String(profile_document.get("mode", CONTROL_MODE_GESTURE)),
+		"invert_x": bool(response.get("invert_x", false)),
+		"invert_y": bool(response.get("invert_y", false)),
+		"look_sensitivity_x": float(rotation.get("look_sensitivity_x", 1.0)),
+		"look_sensitivity_y": float(rotation.get("look_sensitivity_y", 1.0)),
+		"translation_sensitivity_x": float(translation.get("sensitivity_x", 1.0)),
+		"translation_sensitivity_y": float(translation.get("sensitivity_y", 0.6)),
+		"translation_sensitivity_z": float(translation.get("sensitivity_z", 0.4)),
+		"max_yaw_degrees": float(rotation.get("max_yaw_degrees", 20.0)),
+		"max_pitch_degrees": float(rotation.get("max_pitch_degrees", 12.0)),
+		"max_roll_degrees": float(rotation.get("max_roll_degrees", 4.0)),
+		"max_translation_meters": translation.get("max_meters", [0.6, 0.35, 0.45]).duplicate(true) if translation.get("max_meters", [0.6, 0.35, 0.45]) is Array else [0.6, 0.35, 0.45],
+		"smoothing": float(response.get("smoothing", 0.2)),
+		"deadzone": float(response.get("deadzone", 0.03)),
+		"recenter_speed": float(response.get("recenter_speed", 1.8)),
+		"tracking_confidence_threshold": float(tracking.get("confidence_threshold", 0.45)),
+		"freeze_on_tracking_loss": bool(tracking.get("freeze_on_tracking_loss", true)),
+		"sample_source": String(tracking.get("sample_source", "head_position")),
+		"debug_trace_level": String(debug.get("trace_level", DEFAULT_DEBUG_TRACE_LEVEL)),
+	}
+
+func _extract_profile_metadata_from_document(profile_document: Dictionary) -> Dictionary:
+	var schema: Dictionary = profile_document.get("schema", {}) if profile_document.get("schema", {}) is Dictionary else {}
+	return {
+		"profile_id": String(profile_document.get("profile_id", DEFAULT_PROFILE_ID)),
+		"display_name": String(profile_document.get("display_name", DEFAULT_PROFILE_DISPLAY_NAME)),
+		"description": String(profile_document.get("description", DEFAULT_PROFILE_DESCRIPTION)),
+		"schema_id": String(schema.get("id", PROFILE_SCHEMA_ID)),
+		"schema_version": int(schema.get("version", PROFILE_SCHEMA_VERSION)),
+	}
+
+func _apply_profile_document(profile_document: Dictionary, source_path: String, source_format: String, source_text: String) -> void:
+	var resolved_profile := _normalize_profile(_flatten_profile_document(profile_document))
+	_profile = resolved_profile
+	_enabled = true
+	_last_profile_path = source_path
+	_active_profile_info = _build_active_profile_info(profile_document, source_path, source_format, source_text)
+	set_control_mode(String(_profile.get("mode", CONTROL_MODE_GESTURE)))
+	_emit_tracking_state_if_changed(true)
+
+func _build_active_profile_info(profile_document: Dictionary, source_path: String, source_format: String, source_text: String) -> Dictionary:
+	var metadata := _extract_profile_metadata_from_document(profile_document)
+	return {
+		"profile_id": String(metadata.get("profile_id", DEFAULT_PROFILE_ID)),
+		"display_name": String(metadata.get("display_name", DEFAULT_PROFILE_DISPLAY_NAME)),
+		"description": String(metadata.get("description", DEFAULT_PROFILE_DESCRIPTION)),
+		"source_path": source_path,
+		"source_format": source_format,
+		"source_hash": _hash_profile_text(source_text),
+		"schema_id": String(metadata.get("schema_id", PROFILE_SCHEMA_ID)),
+		"schema_version": int(metadata.get("schema_version", PROFILE_SCHEMA_VERSION)),
+	}
+
+func _ensure_active_profile_info_hash() -> void:
+	if not String(_active_profile_info.get("source_hash", "")).is_empty():
+		return
+	var profile_document := _build_profile_document(_profile, _active_profile_info)
+	var serialized_document := _serialize_profile_document(profile_document, "yaml")
+	_active_profile_info = _build_active_profile_info(
+		profile_document,
+		String(_active_profile_info.get("source_path", "")),
+		String(_active_profile_info.get("source_format", "inline")),
+		serialized_document
+	)
+
+func _detect_profile_format_from_path(path: String) -> String:
+	var normalized_path := path.to_lower()
+	if normalized_path.ends_with(".yaml") or normalized_path.ends_with(".yml"):
+		return "yaml"
+	return "json"
+
+func _deserialize_profile_document(text: String, source_format: String) -> Dictionary:
+	match source_format:
+		"yaml":
+			var parsed_yaml := _parse_simple_yaml_document(text)
+			if parsed_yaml.is_empty():
+				return {}
+			return _ensure_profile_document_shape(parsed_yaml)
+		_:
+			var parsed_json: Variant = JSON.parse_string(text)
+			if not parsed_json is Dictionary:
+				return {}
+			var profile_dict: Dictionary = parsed_json
+			if _looks_like_profile_document(profile_dict):
+				return _ensure_profile_document_shape(profile_dict)
+			return _build_profile_document_from_flat(profile_dict)
+
+func _serialize_profile_document(profile_document: Dictionary, source_format: String) -> String:
+	match source_format:
+		"yaml":
+			return _stringify_yaml_document(profile_document)
+		_:
+			return JSON.stringify(_normalize_profile(_flatten_profile_document(profile_document)), "\t")
+
+func _parse_simple_yaml_document(text: String) -> Dictionary:
+	var root := {}
+	var stack := [{"indent": -1, "container": root}]
+	for raw_line in text.split("\n"):
+		var normalized_line := raw_line.replace("\t", "  ")
+		var stripped_line := normalized_line.strip_edges()
+		if stripped_line.is_empty() or stripped_line.begins_with("#"):
+			continue
+		var indent_count := normalized_line.length() - normalized_line.lstrip(" ").length()
+		var content := normalized_line.substr(indent_count).strip_edges()
+		var separator_index := content.find(":")
+		if separator_index < 0:
+			push_error("CameraGestureController: invalid YAML line: %s" % content)
+			return {}
+		var key := content.substr(0, separator_index).strip_edges()
+		var raw_value := content.substr(separator_index + 1).strip_edges()
+		while stack.size() > 0 and int(stack.back().get("indent", -1)) >= indent_count:
+			stack.pop_back()
+		if stack.is_empty():
+			push_error("CameraGestureController: invalid YAML indentation")
+			return {}
+		var container: Dictionary = stack.back().get("container", {})
+		if raw_value.is_empty():
+			var child := {}
+			container[key] = child
+			stack.append({"indent": indent_count, "container": child})
+		else:
+			container[key] = _parse_yaml_scalar_or_inline_array(raw_value)
+	return root
+
+func _parse_yaml_scalar_or_inline_array(raw_value: String) -> Variant:
+	var trimmed := raw_value.strip_edges()
+	if trimmed.begins_with("[") and trimmed.ends_with("]"):
+		var contents := trimmed.substr(1, trimmed.length() - 2).strip_edges()
+		if contents.is_empty():
+			return []
+		var values: Array = []
+		for part in contents.split(","):
+			values.append(_parse_yaml_scalar_or_inline_array(String(part).strip_edges()))
+		return values
+	if (trimmed.begins_with('"') and trimmed.ends_with('"')) or (trimmed.begins_with("'") and trimmed.ends_with("'")):
+		return trimmed.substr(1, max(trimmed.length() - 2, 0))
+	match trimmed.to_lower():
+		"true":
+			return true
+		"false":
+			return false
+		"null":
+			return null
+	if trimmed.is_valid_int():
+		return int(trimmed)
+	if trimmed.is_valid_float():
+		return float(trimmed)
+	return trimmed
+
+func _stringify_yaml_document(profile_document: Dictionary) -> String:
+	var schema: Dictionary = profile_document.get("schema", {}) if profile_document.get("schema", {}) is Dictionary else {}
+	var tracking: Dictionary = profile_document.get("tracking", {}) if profile_document.get("tracking", {}) is Dictionary else {}
+	var response: Dictionary = profile_document.get("response", {}) if profile_document.get("response", {}) is Dictionary else {}
+	var rotation: Dictionary = profile_document.get("rotation", {}) if profile_document.get("rotation", {}) is Dictionary else {}
+	var translation: Dictionary = profile_document.get("translation", {}) if profile_document.get("translation", {}) is Dictionary else {}
+	var debug: Dictionary = profile_document.get("debug", {}) if profile_document.get("debug", {}) is Dictionary else {}
+	var lines := [
+		"schema:",
+		"  id: %s" % _stringify_yaml_scalar(schema.get("id", PROFILE_SCHEMA_ID)),
+		"  version: %s" % _stringify_yaml_scalar(int(schema.get("version", PROFILE_SCHEMA_VERSION))),
+		"",
+		"profile_id: %s" % _stringify_yaml_scalar(profile_document.get("profile_id", DEFAULT_PROFILE_ID)),
+		"display_name: %s" % _stringify_yaml_scalar(profile_document.get("display_name", DEFAULT_PROFILE_DISPLAY_NAME)),
+		"description: %s" % _stringify_yaml_scalar(profile_document.get("description", DEFAULT_PROFILE_DESCRIPTION)),
+		"mode: %s" % _stringify_yaml_scalar(profile_document.get("mode", CONTROL_MODE_GESTURE)),
+		"",
+		"tracking:",
+		"  sample_source: %s" % _stringify_yaml_scalar(tracking.get("sample_source", "head_position")),
+		"  confidence_threshold: %s" % _stringify_yaml_scalar(float(tracking.get("confidence_threshold", 0.45))),
+		"  freeze_on_tracking_loss: %s" % _stringify_yaml_scalar(bool(tracking.get("freeze_on_tracking_loss", true))),
+		"",
+		"response:",
+		"  invert_x: %s" % _stringify_yaml_scalar(bool(response.get("invert_x", false))),
+		"  invert_y: %s" % _stringify_yaml_scalar(bool(response.get("invert_y", false))),
+		"  smoothing: %s" % _stringify_yaml_scalar(float(response.get("smoothing", 0.2))),
+		"  deadzone: %s" % _stringify_yaml_scalar(float(response.get("deadzone", 0.03))),
+		"  recenter_speed: %s" % _stringify_yaml_scalar(float(response.get("recenter_speed", 1.8))),
+		"",
+		"rotation:",
+		"  look_sensitivity_x: %s" % _stringify_yaml_scalar(float(rotation.get("look_sensitivity_x", 1.0))),
+		"  look_sensitivity_y: %s" % _stringify_yaml_scalar(float(rotation.get("look_sensitivity_y", 1.0))),
+		"  max_yaw_degrees: %s" % _stringify_yaml_scalar(float(rotation.get("max_yaw_degrees", 20.0))),
+		"  max_pitch_degrees: %s" % _stringify_yaml_scalar(float(rotation.get("max_pitch_degrees", 12.0))),
+		"  max_roll_degrees: %s" % _stringify_yaml_scalar(float(rotation.get("max_roll_degrees", 4.0))),
+		"",
+		"translation:",
+		"  sensitivity_x: %s" % _stringify_yaml_scalar(float(translation.get("sensitivity_x", 1.0))),
+		"  sensitivity_y: %s" % _stringify_yaml_scalar(float(translation.get("sensitivity_y", 0.6))),
+		"  sensitivity_z: %s" % _stringify_yaml_scalar(float(translation.get("sensitivity_z", 0.4))),
+		"  max_meters: %s" % _stringify_yaml_scalar(translation.get("max_meters", [0.6, 0.35, 0.45])),
+		"",
+		"debug:",
+		"  trace_level: %s" % _stringify_yaml_scalar(debug.get("trace_level", DEFAULT_DEBUG_TRACE_LEVEL)),
+	]
+	return "\n".join(lines) + "\n"
+
+func _stringify_yaml_scalar(value: Variant) -> String:
+	if value is Array:
+		var parts: Array[String] = []
+		for item in value:
+			parts.append(_stringify_yaml_scalar(item))
+		return "[%s]" % ", ".join(parts)
+	if value is bool:
+		return "true" if value else "false"
+	if value == null:
+		return "null"
+	if value is int or value is float:
+		return str(value)
+	var text := String(value)
+	if _yaml_needs_quotes(text):
+		return '"%s"' % text.replace('"', '\\"')
+	return text
+
+func _yaml_needs_quotes(text: String) -> bool:
+	if text.is_empty():
+		return true
+	for token in ["#", ":", ",", "[", "]", "{", "}", " "]:
+		if text.contains(token):
+			return true
+	return false
+
+func _hash_profile_text(source_text: String) -> String:
+	var bytes := source_text.to_utf8_buffer()
+	var hash_value: int = 2166136261
+	for byte_value in bytes:
+		hash_value = int(hash_value ^ int(byte_value))
+		hash_value = int((hash_value * 16777619) & 0xffffffff)
+	return "fnv1a32:%s" % _int_to_hex8(hash_value)
+
+func _int_to_hex8(value: int) -> String:
+	var digits := "0123456789abcdef"
+	var remaining := value & 0xffffffff
+	var result := ""
+	for _index in range(8):
+		var nibble := remaining & 0xf
+		result = digits.substr(nibble, 1) + result
+		remaining = remaining >> 4
+	return result

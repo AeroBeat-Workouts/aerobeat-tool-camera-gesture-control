@@ -3,8 +3,9 @@ extends Node
 
 signal initialized
 
-const VERSION: String = "0.1.0"
+const VERSION: String = "0.2.0"
 const CONTROLLER_SCRIPT := preload("res://src/camera_gesture_controller.gd")
+const DEFAULT_CAMERA_GESTURE_PROFILE_PATH := "res://assets/profiles/camera_gesture/default_v1.camera_gesture.yaml"
 
 @export var is_active: bool = true
 
@@ -22,3 +23,6 @@ func _initialize() -> void:
 
 func create_camera_gesture_controller() -> CameraGestureController:
 	return CONTROLLER_SCRIPT.new()
+
+func get_default_camera_gesture_profile_path() -> String:
+	return DEFAULT_CAMERA_GESTURE_PROFILE_PATH

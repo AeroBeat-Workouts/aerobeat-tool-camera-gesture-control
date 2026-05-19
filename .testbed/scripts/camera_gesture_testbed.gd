@@ -2,7 +2,7 @@ extends Control
 
 const CONTROLLER_SCRIPT := preload("res://src/camera_gesture_controller.gd")
 const FAKE_INPUT_SOURCE_SCRIPT := preload("res://scripts/fake_camera_input_source.gd")
-const TESTBED_PROFILE_PATH := "user://camera_gesture_profile.json"
+const TESTBED_PROFILE_PATH := "user://camera_gesture_profile.camera_gesture.yaml"
 const MEDIAPIPE_PROVIDER_PATH := "res://addons/aerobeat-input-mediapipe-python/src/input_provider.gd"
 
 var _controller: CameraGestureController
@@ -80,7 +80,7 @@ func _build_layout() -> void:
 	left_panel.add_child(title)
 
 	var subtitle := Label.new()
-	subtitle.text = "Compare gesture control against mouse + WASD, tune the controller profile, and round-trip JSON saves."
+	subtitle.text = "Compare gesture control against mouse + WASD, tune the controller profile, and round-trip YAML-first profile saves."
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	left_panel.add_child(subtitle)
 
@@ -128,7 +128,7 @@ func _build_layout() -> void:
 	_fake_controls["animate"] = _add_toggle(left_panel, "Animate fake input", true, _on_fake_control_changed)
 
 	var profile_header := Label.new()
-	profile_header.text = "Profile save/load"
+	profile_header.text = "Profile save/load (YAML-first)"
 	profile_header.add_theme_font_size_override("font_size", 18)
 	left_panel.add_child(profile_header)
 
@@ -336,6 +336,9 @@ func _update_debug_panel() -> void:
 		"Current source: %s" % _source_mode,
 		"Camera attached: %s" % debug_state.get("camera_attached", false),
 		"Input source attached: %s" % debug_state.get("input_source_attached", false),
+		"",
+		"Active profile:",
+		JSON.stringify(debug_state.get("active_profile", {}), "\t"),
 		"",
 		"Tracking state:",
 		JSON.stringify(debug_state.get("tracking_state", {}), "\t"),
