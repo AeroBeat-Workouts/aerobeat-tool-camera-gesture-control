@@ -16,7 +16,7 @@ func test_camera_gesture_testbed_scene_builds_harness_nodes() -> void:
 	assert_true(instance.get_node_or_null("RootSplit/RightColumn/DebugTabs") != null, "Harness should expose richer debug tabs")
 	var viewport := instance.get_node_or_null("RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/WorldPreviewViewportContainer/WorldPreviewViewport") as SubViewport
 	assert_true(viewport != null, "Harness should create the world preview viewport")
-	assert_eq(viewport.size, Vector2i(1280, 720), "Harness viewport should stay 16:9 ready")
+	assert_eq(viewport.size, Vector2i(1920, 1080), "Harness viewport should target AeroBeat's default 1920x1080 surface")
 
 func test_trace_capture_store_exports_manifest_and_frames() -> void:
 	var store: CameraGestureTraceCaptureStore = TRACE_STORE_SCRIPT.new()
@@ -50,3 +50,17 @@ func test_fixture_scaffold_readme_exists() -> void:
 	assert_true(file != null, "Fixture scaffold README should open")
 	var text := file.get_as_text()
 	assert_true(text.contains("same-basename video + sidecar pairs"), "Fixture scaffold README should describe the intended pair layout")
+
+func test_camera_gesture_testbed_exposes_split_source_modes_and_real_fixture_defaults() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	var source_option := instance.get("_source_option") as OptionButton
+	assert_eq(source_option.item_count, 3, "Testbed should expose fake, live, and replay source modes")
+	assert_eq(source_option.get_item_text(0), "fake")
+	assert_eq(source_option.get_item_text(1), "mediapipe_live")
+	assert_eq(source_option.get_item_text(2), "mediapipe_replay")
+	var fixture_video_path_edit := instance.get("_fixture_video_path_edit") as LineEdit
+	var fixture_sidecar_path_edit := instance.get("_fixture_sidecar_path_edit") as LineEdit
+	assert_true(fixture_video_path_edit.text.contains("head_rotate_left_repeat_04_take_01.mp4"), "Fixture default should point at a checked-in candidate video")
+	assert_true(fixture_sidecar_path_edit.text.contains("head_rotate_left_repeat_04_take_01.fixture.yaml"), "Fixture default should point at a checked-in candidate sidecar")

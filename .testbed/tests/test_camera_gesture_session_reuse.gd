@@ -127,15 +127,16 @@ func test_switch_to_mediapipe_reuses_published_shared_session() -> void:
 			"metadata": {
 				"lane": "qa_owner_lane",
 				"stream_url": "http://127.0.0.1:4243/camera",
+				"runtime_mode": "live",
 			},
 		}
 	)
 	assert_true(bool(publish.get("ok", false)), "Test setup should publish a shared mediapipe session")
 
 	var instance := _instantiate_testbed()
-	instance.call("_switch_input_source", "mediapipe_python")
+	instance.call("_switch_input_source", "mediapipe_live")
 
-	assert_eq(instance.get("_source_mode"), "mediapipe_python")
+	assert_eq(instance.get("_source_mode"), "mediapipe_live")
 	assert_same(instance.get("_mediapipe_input_source"), shared_provider, "Testbed should reuse the already-published provider instance")
 	assert_true(bool(instance.get("_mediapipe_input_source_is_borrowed")), "Shared provider should be marked as borrowed")
 	assert_eq(String(instance.get("_mediapipe_borrowed_session_key")), "mediapipe_python/shared_qa")

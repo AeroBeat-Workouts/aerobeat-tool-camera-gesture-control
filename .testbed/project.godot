@@ -6,6 +6,11 @@ config/name="AeroBeat Tool Camera Gesture Control Testbed"
 config/features=PackedStringArray("4.6", "Forward Plus")
 run/main_scene="res://scenes/camera_gesture_testbed.tscn"
 
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/gut/plugin.cfg")

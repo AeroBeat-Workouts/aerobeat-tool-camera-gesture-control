@@ -4,20 +4,26 @@ const CONTROLLER_SCRIPT := preload("res://src/camera_gesture_controller.gd")
 const FAKE_INPUT_SOURCE_SCRIPT := preload("res://scripts/fake_camera_input_source.gd")
 const TRACKING_INSET_OVERLAY_SCRIPT := preload("res://scripts/tracking_inset_overlay.gd")
 const TRACE_CAPTURE_STORE_SCRIPT := preload("res://scripts/trace_capture_store.gd")
+const FIXTURE_RUNTIME_CONFIG_SCRIPT := preload("res://scripts/camera_gesture_fixture_runtime_config.gd")
 
 const DEFAULT_PROFILE_REPO_RELATIVE_PATH := "../assets/profiles/camera_gesture/default_v1.camera_gesture.yaml"
 const TESTBED_PROFILE_EXPORT_PATH := "user://camera_gesture_profiles/working.camera_gesture.yaml"
 const TRACE_EXPORT_ROOT := "user://trace_exports/camera_gesture"
-const FIXTURE_PLACEHOLDER_VIDEO_PATH := "res://assets/fixtures/camera_gesture/head_pose/candidates/example_take_01.mp4"
-const FIXTURE_PLACEHOLDER_SIDECAR_PATH := "res://assets/fixtures/camera_gesture/head_pose/candidates/example_take_01.fixture.yaml"
+const DEFAULT_FIXTURE_VIDEO_PATH := "res://assets/fixtures/camera_gesture/head_pose/candidates/head_rotate_left_repeat_04_take_01.mp4"
+const DEFAULT_FIXTURE_SIDECAR_PATH := "res://assets/fixtures/camera_gesture/head_pose/candidates/head_rotate_left_repeat_04_take_01.fixture.yaml"
 const MEDIAPIPE_PROVIDER_PATH := "res://addons/aerobeat-input-mediapipe-python/src/input_provider.gd"
 const MEDIAPIPE_CAMERA_VIEW_PATH := "res://addons/aerobeat-input-mediapipe-python/src/camera_view.gd"
+const MEDIAPIPE_AUTOSTART_MANAGER_PATH := "res://addons/aerobeat-input-mediapipe-python/src/autostart_manager.gd"
 const PROVIDER_SESSION_REGISTRY_PATH := "res://addons/aerobeat-input-core/src/runtime/provider_session_registry.gd"
 const DEFAULT_MEDIAPIPE_STREAM_URL := "http://127.0.0.1:4243/camera"
+const DEFAULT_TESTBED_VIEWPORT_SIZE := Vector2i(1920, 1080)
 const MEDIAPIPE_SESSION_OWNER_ID := "aerobeat-tool-camera-gesture-control:testbed"
 const MEDIAPIPE_SESSION_CONSUMER_ID := "aerobeat-tool-camera-gesture-control:testbed_consumer"
 const MEDIAPIPE_SESSION_KEY := "mediapipe_python/camera_gesture_testbed"
-const SOURCE_OPTIONS := ["fake", "mediapipe_python"]
+const SOURCE_MODE_FAKE := "fake"
+const SOURCE_MODE_MEDIAPIPE_LIVE := "mediapipe_live"
+const SOURCE_MODE_MEDIAPIPE_REPLAY := "mediapipe_replay"
+const SOURCE_OPTIONS := [SOURCE_MODE_FAKE, SOURCE_MODE_MEDIAPIPE_LIVE, SOURCE_MODE_MEDIAPIPE_REPLAY]
 const CONTROL_MODE_OPTIONS := ["gesture", "mouse_wasd", "disabled"]
 const SAMPLE_SOURCE_OPTIONS := ["head_position", "head_velocity", "head_rotation"]
 const TRACE_LEVEL_OPTIONS := ["off", "basic", "verbose"]
@@ -39,6 +45,8 @@ var _trace_export_root_edit: LineEdit
 var _fixture_key_edit: LineEdit
 var _fixture_video_path_edit: LineEdit
 var _fixture_sidecar_path_edit: LineEdit
+var _fixture_runtime_helper = null
+var _fixture_runtime_config := {}
 var _preview_stats_label: RichTextLabel
 var _runtime_debug_label: RichTextLabel
 var _trace_debug_label: RichTextLabel
@@ -56,12 +64,17 @@ var _fake_input_source: FakeCameraInputSource
 var _mediapipe_input_source: Node = null
 var _mediapipe_provider_backend: Node = null
 var _mediapipe_camera_view = null
+var _mediapipe_autostart_manager: Node = null
+var _mediapipe_runtime_signature := ""
+var _mediapipe_runtime_status := "inactive"
+var _mediapipe_runtime_last_error := ""
+var _mediapipe_runtime_request_serial := 0
 var _mediapipe_input_source_is_borrowed := false
 var _mediapipe_owned_session_key := ""
 var _mediapipe_borrowed_session_key := ""
 var _mediapipe_session_owner_id := ""
 var _mediapipe_session_metadata := {}
-var _source_mode := "fake"
+var _source_mode := SOURCE_MODE_FAKE
 var _latest_provider_state := {}
 var _latest_source_snapshot := {}
 var _latest_pose_landmarks: Array = []
@@ -73,6 +86,7 @@ func _ready() -> void:
 	name = "CameraGestureControlTestbed"
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_trace_store = TRACE_CAPTURE_STORE_SCRIPT.new()
+	_fixture_runtime_helper = FIXTURE_RUNTIME_CONFIG_SCRIPT.new()
 	_controller = CONTROLLER_SCRIPT.new()
 	add_child(_controller)
 	_controller.control_mode_changed.connect(_on_controller_mode_changed)
@@ -86,6 +100,7 @@ func _ready() -> void:
 	_controller.attach_camera(_camera)
 	_load_default_profile_on_boot()
 	_apply_profile_to_ui(_controller.get_profile())
+	_refresh_fixture_runtime_config(true)
 	_switch_input_source(_source_mode)
 	_update_status("Ready")
 	_update_debug_surfaces()
@@ -137,12 +152,12 @@ func _build_layout() -> void:
 	left_scroll.add_child(left_panel)
 
 	var title := Label.new()
-	title.text = "Camera Gesture Control Harness"
+	title.text = "Camera Gesture Control Testbed"
 	title.add_theme_font_size_override("font_size", 26)
 	left_panel.add_child(title)
 
 	var subtitle := Label.new()
-	subtitle.text = "16:9 proving scene with YAML-first profile controls, 3D parallax preview, MediaPipe/tracking inset, and exportable trace scaffolding."
+	subtitle.text = "1920×1080 testbed with YAML-first profile controls, real MediaPipe live/replay hookup, 3D parallax preview, and trace-first fixture capture surfaces."
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	left_panel.add_child(subtitle)
 
@@ -189,28 +204,34 @@ func _build_layout() -> void:
 	profile_buttons_bottom.add_child(_make_button("Export YAML snapshot", _export_profile_to_path))
 	profile_buttons_bottom.add_child(_make_button("Reset runtime defaults", _reset_profile))
 
-	var source_panel := _add_section_panel(left_panel, "Source + fixture hooks")
+	var source_panel := _add_section_panel(left_panel, "Source + fixture runtime")
 	_source_option = _add_option(source_panel, "Input source", SOURCE_OPTIONS, _on_source_mode_selected)
 	_fixture_key_edit = LineEdit.new()
 	_fixture_key_edit.name = "FixtureKeyEdit"
 	_fixture_key_edit.placeholder_text = "Fixture key / intent family"
-	_fixture_key_edit.text = "camera_gesture/manual/live"
+	_fixture_key_edit.text = "camera_gesture/head_pose/head_rotate_left_repeat_04_take_01"
 	source_panel.add_child(_labeled_control("Fixture key", _fixture_key_edit))
 
 	_fixture_video_path_edit = LineEdit.new()
 	_fixture_video_path_edit.name = "FixtureVideoPathEdit"
-	_fixture_video_path_edit.placeholder_text = "Future prerecorded video path"
-	_fixture_video_path_edit.text = FIXTURE_PLACEHOLDER_VIDEO_PATH
+	_fixture_video_path_edit.placeholder_text = "Fixture video path used for replay mode"
+	_fixture_video_path_edit.text = DEFAULT_FIXTURE_VIDEO_PATH
 	source_panel.add_child(_labeled_control("Fixture video path", _fixture_video_path_edit))
 
 	_fixture_sidecar_path_edit = LineEdit.new()
 	_fixture_sidecar_path_edit.name = "FixtureSidecarPathEdit"
-	_fixture_sidecar_path_edit.placeholder_text = "Future sidecar YAML path"
-	_fixture_sidecar_path_edit.text = FIXTURE_PLACEHOLDER_SIDECAR_PATH
+	_fixture_sidecar_path_edit.placeholder_text = "Fixture sidecar YAML path"
+	_fixture_sidecar_path_edit.text = DEFAULT_FIXTURE_SIDECAR_PATH
 	source_panel.add_child(_labeled_control("Fixture sidecar path", _fixture_sidecar_path_edit))
 
+	var source_buttons := HBoxContainer.new()
+	source_buttons.name = "SourceButtons"
+	source_panel.add_child(source_buttons)
+	source_buttons.add_child(_make_button("Apply source / restart runtime", _apply_source_runtime_selection))
+	source_buttons.add_child(_make_button("Refresh fixture hints", _refresh_fixture_runtime_from_ui))
+
 	var fixture_note := Label.new()
-	fixture_note.text = "Practical v1 note: replay/oracle execution is not wired in this slice yet, but these fields flow into trace exports so the later prerecorded-fixture lane can reuse the same harness surface."
+	fixture_note.text = "Replay mode now launches MediaPipe through AutoStartManager with the selected fixture video, sidecar hints can steer the runtime sample source, and trace export stays structured for later oracle work."
 	fixture_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	source_panel.add_child(fixture_note)
 
@@ -292,7 +313,7 @@ func _build_layout() -> void:
 
 	var preview_stack := Control.new()
 	preview_stack.name = "PreviewStack"
-	preview_stack.custom_minimum_size = Vector2(1280, 720)
+	preview_stack.custom_minimum_size = Vector2(DEFAULT_TESTBED_VIEWPORT_SIZE.x, DEFAULT_TESTBED_VIEWPORT_SIZE.y)
 	preview_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	preview_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	preview_margin.add_child(preview_stack)
@@ -305,7 +326,7 @@ func _build_layout() -> void:
 
 	_subviewport = SubViewport.new()
 	_subviewport.name = "WorldPreviewViewport"
-	_subviewport.size = Vector2i(1280, 720)
+	_subviewport.size = DEFAULT_TESTBED_VIEWPORT_SIZE
 	_subviewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	viewport_container.add_child(_subviewport)
 
@@ -491,36 +512,81 @@ func _setup_sources() -> void:
 	_fake_input_source.set_process(true)
 
 	_ensure_mediapipe_camera_view_if_possible()
-	if not ResourceLoader.exists(MEDIAPIPE_PROVIDER_PATH) and _source_option != null:
-		_source_mode = "fake"
+	if _source_option == null:
+		return
+	if not ResourceLoader.exists(MEDIAPIPE_PROVIDER_PATH):
+		_source_mode = SOURCE_MODE_FAKE
 		_source_option.select(0)
-		_source_option.set_item_disabled(1, true)
+		for item_index in range(1, _source_option.item_count):
+			_source_option.set_item_disabled(item_index, true)
+	elif not ResourceLoader.exists(MEDIAPIPE_AUTOSTART_MANAGER_PATH):
+		var replay_index := SOURCE_OPTIONS.find(SOURCE_MODE_MEDIAPIPE_REPLAY)
+		if replay_index >= 0:
+			_source_option.set_item_disabled(replay_index, true)
 
 func _switch_input_source(mode: String) -> void:
-	_source_mode = mode if SOURCE_OPTIONS.has(mode) else "fake"
+	_refresh_fixture_runtime_config(false)
+	_source_mode = mode if SOURCE_OPTIONS.has(mode) else SOURCE_MODE_FAKE
 	match _source_mode:
-		"mediapipe_python":
-			if _ensure_mediapipe_input_source() and _controller.attach_input_source(_mediapipe_input_source):
+		SOURCE_MODE_MEDIAPIPE_LIVE, SOURCE_MODE_MEDIAPIPE_REPLAY:
+			if _ensure_mediapipe_input_source(_source_mode) and _controller.attach_input_source(_mediapipe_input_source):
 				_current_input_source = _mediapipe_input_source
 				_wire_mediapipe_backend_if_possible()
-				_update_status("Using MediaPipe Python input source")
+				_ensure_mediapipe_runtime_for_active_source()
+				_update_status("Using %s input source" % _source_mode_label(_source_mode))
 			else:
 				_release_borrowed_mediapipe_session()
 				_current_input_source = _fake_input_source
 				_controller.attach_input_source(_fake_input_source)
-				_source_mode = "fake"
+				_source_mode = SOURCE_MODE_FAKE
 				if _source_option != null:
 					_source_option.select(0)
 				_update_status("MediaPipe unavailable; fell back to fake source")
 		_:
 			_release_borrowed_mediapipe_session()
+			_reset_mediapipe_autostart_manager()
 			_current_input_source = _fake_input_source
 			_controller.attach_input_source(_fake_input_source)
 			_update_status("Using fake input source")
-	_source_label.text = "Input source: %s" % _source_mode
+	_source_label.text = "Input source: %s" % _source_mode_label(_source_mode)
 	for control in _fake_controls.values():
 		control.visible = _current_input_source == _fake_input_source
 	_refresh_media_inset_surface()
+
+func _apply_source_runtime_selection() -> void:
+	_refresh_fixture_runtime_config(true)
+	_switch_input_source(_get_option_value(_source_option))
+
+func _refresh_fixture_runtime_from_ui() -> void:
+	_refresh_fixture_runtime_config(true)
+	_update_status("Refreshed fixture runtime hints")
+
+func _refresh_fixture_runtime_config(update_fields: bool = false) -> Dictionary:
+	if _fixture_runtime_helper == null:
+		return _fixture_runtime_config
+	_fixture_runtime_config = _fixture_runtime_helper.resolve(
+		_fixture_video_path_edit.text,
+		_fixture_sidecar_path_edit.text
+	)
+	if update_fields:
+		var effective_video: Dictionary = _fixture_runtime_config.get("effective_video", {}) if _fixture_runtime_config.get("effective_video", {}) is Dictionary else {}
+		var sidecar: Dictionary = _fixture_runtime_config.get("sidecar", {}) if _fixture_runtime_config.get("sidecar", {}) is Dictionary else {}
+		if bool(sidecar.get("exists", false)):
+			_fixture_sidecar_path_edit.text = str(sidecar.get("display_path", _fixture_sidecar_path_edit.text))
+		if bool(effective_video.get("exists", false)):
+			_fixture_video_path_edit.text = str(effective_video.get("display_path", _fixture_video_path_edit.text))
+		var fixture_key := str(_fixture_runtime_config.get("fixture_key", "")).strip_edges()
+		if not fixture_key.is_empty():
+			_fixture_key_edit.text = fixture_key
+	_apply_fixture_runtime_hints(_fixture_runtime_config)
+	return _fixture_runtime_config
+
+func _apply_fixture_runtime_hints(config: Dictionary) -> void:
+	var sample_source_hint := str(config.get("sample_source_hint", "")).strip_edges()
+	if sample_source_hint.is_empty() or not _field_refs.has("sample_source"):
+		return
+	_set_option_value(_field_refs["sample_source"], sample_source_hint)
+	_apply_ui_to_controller_profile()
 
 func _provider_session_registry_available() -> bool:
 	return ResourceLoader.exists(PROVIDER_SESSION_REGISTRY_PATH)
@@ -530,26 +596,49 @@ func _load_provider_session_registry():
 		return null
 	return load(PROVIDER_SESSION_REGISTRY_PATH)
 
-func _ensure_mediapipe_input_source() -> bool:
+func _ensure_mediapipe_input_source(requested_mode: String) -> bool:
 	if _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source):
+		if _mediapipe_input_source_is_borrowed:
+			var borrowed_mode := str(_mediapipe_session_metadata.get("runtime_mode", ""))
+			if borrowed_mode.is_empty() or borrowed_mode == _source_mode_runtime_label(requested_mode):
+				return true
+		else:
+			return true
+	if _try_acquire_shared_mediapipe_session(requested_mode):
 		return true
-	if _try_acquire_shared_mediapipe_session():
-		return true
-	return _start_local_mediapipe_input_source()
+	return _start_local_mediapipe_input_source(requested_mode)
 
-func _try_acquire_shared_mediapipe_session() -> bool:
+func _try_acquire_shared_mediapipe_session(requested_mode: String) -> bool:
 	if _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source) and _mediapipe_input_source_is_borrowed:
-		return true
+		var borrowed_runtime_mode := str(_mediapipe_session_metadata.get("runtime_mode", "")).strip_edges()
+		if borrowed_runtime_mode.is_empty() or borrowed_runtime_mode == _source_mode_runtime_label(requested_mode):
+			return true
+		_release_borrowed_mediapipe_session()
 	var registry = _load_provider_session_registry()
 	if registry == null:
 		return false
-	var request: Dictionary = registry.request_session({
+	var requested_metadata := _build_mediapipe_session_metadata_for_mode(requested_mode)
+	var request_filters := {
 		"provider_id": "mediapipe_python",
-	})
+		"metadata_match": {
+			"runtime_mode": str(requested_metadata.get("runtime_mode", "")),
+		},
+	}
+	if requested_mode == SOURCE_MODE_MEDIAPIPE_REPLAY:
+		request_filters["metadata_match"]["camera_source"] = str(requested_metadata.get("camera_source", ""))
+	var request: Dictionary = registry.request_session(request_filters)
+	if not bool(request.get("ok", false)) and requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE:
+		request = registry.request_session({"provider_id": "mediapipe_python"})
 	if not bool(request.get("ok", false)):
 		return false
 	var session: Dictionary = request.get("session", {}) if request.get("session", {}) is Dictionary else {}
-	var session_key := String(session.get("session_key", "")).strip_edges()
+	var session_metadata: Dictionary = session.get("metadata", {}) if session.get("metadata", {}) is Dictionary else {}
+	var session_runtime_mode := str(session_metadata.get("runtime_mode", "")).strip_edges()
+	if requested_mode == SOURCE_MODE_MEDIAPIPE_REPLAY and session_runtime_mode != "replay":
+		return false
+	if requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE and session_runtime_mode == "replay":
+		return false
+	var session_key := str(session.get("session_key", "")).strip_edges()
 	if session_key.is_empty():
 		return false
 	var acquire: Dictionary = registry.acquire_session(MEDIAPIPE_SESSION_CONSUMER_ID, {"session_key": session_key})
@@ -561,17 +650,20 @@ func _try_acquire_shared_mediapipe_session() -> bool:
 		registry.release_session(MEDIAPIPE_SESSION_CONSUMER_ID, session_key)
 		return false
 	_disconnect_mediapipe_backend_if_possible()
+	_reset_mediapipe_autostart_manager()
 	_mediapipe_input_source = shared_provider
 	_mediapipe_input_source_is_borrowed = true
 	_mediapipe_borrowed_session_key = session_key
 	_mediapipe_owned_session_key = ""
-	_mediapipe_session_owner_id = String(acquired_session.get("owner_id", "")).strip_edges()
+	_mediapipe_session_owner_id = str(acquired_session.get("owner_id", "")).strip_edges()
 	_apply_mediapipe_session_metadata(acquired_session)
 	_wire_mediapipe_backend_if_possible()
 	return true
 
-func _start_local_mediapipe_input_source() -> bool:
+func _start_local_mediapipe_input_source(requested_mode: String) -> bool:
 	if _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source) and not _mediapipe_input_source_is_borrowed:
+		_apply_mediapipe_session_metadata({"metadata": _build_mediapipe_session_metadata_for_mode(requested_mode)})
+		_publish_owned_mediapipe_session()
 		return true
 	if not ResourceLoader.exists(MEDIAPIPE_PROVIDER_PATH):
 		return false
@@ -592,7 +684,7 @@ func _start_local_mediapipe_input_source() -> bool:
 	_mediapipe_input_source_is_borrowed = false
 	_mediapipe_borrowed_session_key = ""
 	_mediapipe_session_owner_id = MEDIAPIPE_SESSION_OWNER_ID
-	_apply_mediapipe_session_metadata({"metadata": _default_mediapipe_session_metadata()})
+	_apply_mediapipe_session_metadata({"metadata": _build_mediapipe_session_metadata_for_mode(requested_mode)})
 	_wire_mediapipe_backend_if_possible()
 	_publish_owned_mediapipe_session()
 	return true
@@ -616,7 +708,7 @@ func _publish_owned_mediapipe_session() -> Dictionary:
 	)
 	if bool(publish.get("ok", false)):
 		var session: Dictionary = publish.get("session", {}) if publish.get("session", {}) is Dictionary else {}
-		_mediapipe_owned_session_key = String(session.get("session_key", MEDIAPIPE_SESSION_KEY)).strip_edges()
+		_mediapipe_owned_session_key = str(session.get("session_key", MEDIAPIPE_SESSION_KEY)).strip_edges()
 		_mediapipe_session_owner_id = MEDIAPIPE_SESSION_OWNER_ID
 		_apply_mediapipe_session_metadata(session)
 	return publish
@@ -634,9 +726,12 @@ func _release_borrowed_mediapipe_session() -> void:
 	_mediapipe_borrowed_session_key = ""
 	_mediapipe_session_owner_id = ""
 	_mediapipe_session_metadata = {}
+	_mediapipe_runtime_status = "inactive"
+	_mediapipe_runtime_last_error = ""
 
 func _teardown_mediapipe_runtime() -> void:
 	_release_borrowed_mediapipe_session()
+	_reset_mediapipe_autostart_manager()
 	if _mediapipe_input_source == null or not is_instance_valid(_mediapipe_input_source):
 		return
 	var owned_source := _mediapipe_input_source
@@ -654,6 +749,8 @@ func _teardown_mediapipe_runtime() -> void:
 	_mediapipe_borrowed_session_key = ""
 	_mediapipe_session_owner_id = ""
 	_mediapipe_session_metadata = {}
+	_mediapipe_runtime_status = "inactive"
+	_mediapipe_runtime_last_error = ""
 
 func _disconnect_mediapipe_backend_if_possible() -> void:
 	if _mediapipe_provider_backend != null:
@@ -665,21 +762,158 @@ func _disconnect_mediapipe_backend_if_possible() -> void:
 	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("update_overlay"):
 		_mediapipe_camera_view.update_overlay([])
 
+func _ensure_mediapipe_runtime_for_active_source() -> void:
+	_configure_mediapipe_camera_view_for_mode(_source_mode)
+	if not _is_mediapipe_mode(_source_mode):
+		return
+	if _mediapipe_input_source_is_borrowed:
+		_reset_mediapipe_autostart_manager()
+		_mediapipe_runtime_status = "borrowed session"
+		call_deferred("_ensure_mediapipe_camera_stream")
+		return
+	_mediapipe_runtime_request_serial += 1
+	var request_serial := _mediapipe_runtime_request_serial
+	call_deferred("_start_owned_mediapipe_runtime_async", request_serial, _source_mode)
+
+func _start_owned_mediapipe_runtime_async(request_serial: int, requested_mode: String) -> void:
+	if request_serial != _mediapipe_runtime_request_serial or not _is_mediapipe_mode(requested_mode):
+		return
+	var runtime_signature := _build_mediapipe_runtime_signature(requested_mode)
+	if requested_mode == SOURCE_MODE_MEDIAPIPE_REPLAY and _requested_mediapipe_camera_source_override(requested_mode).is_empty():
+		_update_status("Replay mode requires a valid fixture video path")
+		return
+	if _mediapipe_autostart_manager != null and is_instance_valid(_mediapipe_autostart_manager) and _mediapipe_runtime_signature != runtime_signature:
+		_reset_mediapipe_autostart_manager()
+		await get_tree().process_frame
+	if request_serial != _mediapipe_runtime_request_serial:
+		return
+	if _mediapipe_autostart_manager == null or not is_instance_valid(_mediapipe_autostart_manager):
+		if not _ensure_mediapipe_autostart_manager(requested_mode):
+			_update_status("MediaPipe AutoStartManager seam is unavailable")
+			return
+	var started := true
+	_mediapipe_runtime_status = "starting"
+	_mediapipe_runtime_last_error = ""
+	if _mediapipe_autostart_manager.has_method("is_server_running") and not bool(_mediapipe_autostart_manager.is_server_running()):
+		started = bool(await _mediapipe_autostart_manager.start_server())
+	if request_serial != _mediapipe_runtime_request_serial:
+		return
+	if not started:
+		_mediapipe_runtime_status = "failed"
+		if _mediapipe_runtime_last_error.is_empty():
+			_mediapipe_runtime_last_error = "start_server returned false"
+		_update_status("Failed to start %s runtime" % _source_mode_label(requested_mode))
+		return
+	_mediapipe_runtime_status = "ready"
+	_update_status("%s runtime ready" % _source_mode_label(requested_mode))
+	call_deferred("_ensure_mediapipe_camera_stream")
+
+func _ensure_mediapipe_autostart_manager(requested_mode: String) -> bool:
+	if not ResourceLoader.exists(MEDIAPIPE_AUTOSTART_MANAGER_PATH):
+		return false
+	var autostart_script: GDScript = load(MEDIAPIPE_AUTOSTART_MANAGER_PATH)
+	if autostart_script == null:
+		return false
+	_mediapipe_autostart_manager = autostart_script.new()
+	_mediapipe_autostart_manager.name = "MediaPipeAutoStartManager"
+	_mediapipe_autostart_manager.auto_start = false
+	_mediapipe_autostart_manager.use_camera_stream = true
+	_mediapipe_autostart_manager.camera_source_override = _requested_mediapipe_camera_source_override(requested_mode)
+	if _mediapipe_autostart_manager.has_signal("server_started"):
+		_mediapipe_autostart_manager.server_started.connect(_on_mediapipe_server_started)
+	if _mediapipe_autostart_manager.has_signal("server_stopped"):
+		_mediapipe_autostart_manager.server_stopped.connect(_on_mediapipe_server_stopped)
+	if _mediapipe_autostart_manager.has_signal("server_failed"):
+		_mediapipe_autostart_manager.server_failed.connect(_on_mediapipe_server_failed)
+	if _mediapipe_autostart_manager.has_signal("check_progress"):
+		_mediapipe_autostart_manager.check_progress.connect(_on_mediapipe_server_progress)
+	add_child(_mediapipe_autostart_manager)
+	_mediapipe_runtime_signature = _build_mediapipe_runtime_signature(requested_mode)
+	return true
+
+func _reset_mediapipe_autostart_manager() -> void:
+	if _mediapipe_autostart_manager != null and is_instance_valid(_mediapipe_autostart_manager):
+		_mediapipe_autostart_manager.queue_free()
+	_mediapipe_autostart_manager = null
+	_mediapipe_runtime_signature = ""
+
+func _requested_mediapipe_camera_source_override(requested_mode: String) -> String:
+	if requested_mode != SOURCE_MODE_MEDIAPIPE_REPLAY:
+		return ""
+	var effective_video: Dictionary = _fixture_runtime_config.get("effective_video", {}) if _fixture_runtime_config.get("effective_video", {}) is Dictionary else {}
+	return str(effective_video.get("display_path", "")).strip_edges()
+
+func _build_mediapipe_runtime_signature(requested_mode: String) -> String:
+	return "%s|%s" % [requested_mode, _requested_mediapipe_camera_source_override(requested_mode)]
+
 func _default_mediapipe_session_metadata() -> Dictionary:
+	return _build_mediapipe_session_metadata_for_mode(_source_mode)
+
+func _build_mediapipe_session_metadata_for_mode(requested_mode: String) -> Dictionary:
+	var runtime_label := _source_mode_runtime_label(requested_mode)
+	var requested_source := _requested_mediapipe_camera_source_override(requested_mode)
+	if requested_source.is_empty():
+		requested_source = "0"
+	var effective_video: Dictionary = _fixture_runtime_config.get("effective_video", {}) if _fixture_runtime_config.get("effective_video", {}) is Dictionary else {}
+	var sidecar: Dictionary = _fixture_runtime_config.get("sidecar", {}) if _fixture_runtime_config.get("sidecar", {}) is Dictionary else {}
 	return {
 		"lane": "camera_gesture_testbed",
-		"device": "camera0",
+		"device": "camera0" if runtime_label == "live" else "fixture_video",
 		"stream_url": DEFAULT_MEDIAPIPE_STREAM_URL,
+		"runtime_mode": runtime_label,
+		"camera_source": requested_source,
+		"fixture_key": _fixture_key_edit.text.strip_edges(),
+		"fixture_video_path": str(effective_video.get("display_path", _fixture_video_path_edit.text.strip_edges())),
+		"fixture_sidecar_path": str(sidecar.get("display_path", _fixture_sidecar_path_edit.text.strip_edges())),
+		"sample_source_hint": str(_fixture_runtime_config.get("sample_source_hint", "")),
+		"source_mode": requested_mode,
 	}
 
 func _apply_mediapipe_session_metadata(session_record: Dictionary) -> void:
 	var metadata: Dictionary = session_record.get("metadata", {}) if session_record.get("metadata", {}) is Dictionary else {}
 	_mediapipe_session_metadata = metadata.duplicate(true)
-	var stream_url := String(_mediapipe_session_metadata.get("stream_url", DEFAULT_MEDIAPIPE_STREAM_URL)).strip_edges()
+	var stream_url := str(_mediapipe_session_metadata.get("stream_url", DEFAULT_MEDIAPIPE_STREAM_URL)).strip_edges()
 	if stream_url.is_empty():
 		stream_url = DEFAULT_MEDIAPIPE_STREAM_URL
 	if _mediapipe_camera_view != null:
 		_mediapipe_camera_view.stream_url = stream_url
+	_configure_mediapipe_camera_view_for_mode(_source_mode)
+
+func _configure_mediapipe_camera_view_for_mode(mode: String) -> void:
+	if _mediapipe_camera_view == null:
+		return
+	if _mediapipe_camera_view.has_method("set"):
+		_mediapipe_camera_view.flip_horizontal = mode == SOURCE_MODE_MEDIAPIPE_LIVE
+
+func _on_mediapipe_server_progress(_percentage: int, message: String) -> void:
+	_mediapipe_runtime_status = message
+
+func _on_mediapipe_server_started(_pid: int) -> void:
+	_mediapipe_runtime_status = "ready"
+	_mediapipe_runtime_last_error = ""
+	call_deferred("_ensure_mediapipe_camera_stream")
+
+func _on_mediapipe_server_stopped() -> void:
+	_mediapipe_runtime_status = "stopped"
+
+func _on_mediapipe_server_failed(error: String) -> void:
+	_mediapipe_runtime_status = "failed"
+	_mediapipe_runtime_last_error = error
+
+func _is_mediapipe_mode(mode: String) -> bool:
+	return mode == SOURCE_MODE_MEDIAPIPE_LIVE or mode == SOURCE_MODE_MEDIAPIPE_REPLAY
+
+func _source_mode_runtime_label(mode: String) -> String:
+	return "replay" if mode == SOURCE_MODE_MEDIAPIPE_REPLAY else "live"
+
+func _source_mode_label(mode: String) -> String:
+	match mode:
+		SOURCE_MODE_MEDIAPIPE_LIVE:
+			return "MediaPipe live"
+		SOURCE_MODE_MEDIAPIPE_REPLAY:
+			return "MediaPipe replay"
+		_:
+			return "Fake"
 
 func _load_default_profile_on_boot() -> void:
 	var default_path := _default_profile_absolute_path()
@@ -780,9 +1014,11 @@ func _export_trace_payload(reason: String) -> Dictionary:
 			"key": _fixture_key_edit.text.strip_edges(),
 			"video_path": _fixture_video_path_edit.text.strip_edges(),
 			"sidecar_path": _fixture_sidecar_path_edit.text.strip_edges(),
+			"runtime_config": _trace_store.to_json_safe(_fixture_runtime_config),
 		},
 		"media_inset": {
 			"source_mode": _source_mode,
+			"source_mode_label": _source_mode_label(_source_mode),
 			"camera_feed_available": _mediapipe_camera_view != null,
 			"camera_feed_live": _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming()),
 			"fallback_message": _media_placeholder_label.text,
@@ -824,11 +1060,15 @@ func _remember_recent_trace_frame(debug_state: Dictionary, source_snapshot: Dict
 func _collect_source_snapshot() -> Dictionary:
 	var snapshot := {
 		"source_mode": _source_mode,
+		"source_mode_label": _source_mode_label(_source_mode),
 		"tracking": _current_input_source != null and _current_input_source.has_method("is_tracking") and bool(_current_input_source.is_tracking()),
 		"confidence": _read_current_source_confidence(),
 		"threshold": float(_controller.get_debug_state().get("tracking_state", {}).get("threshold", 0.0)),
-		"camera_feed_requested": _source_mode == "mediapipe_python",
+		"camera_feed_requested": _is_mediapipe_mode(_source_mode),
 		"camera_feed_live": _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming()),
+		"runtime_mode": _source_mode_runtime_label(_source_mode) if _is_mediapipe_mode(_source_mode) else "fake",
+		"fixture_key": _fixture_key_edit.text.strip_edges(),
+		"fixture_runtime_ready": bool(_fixture_runtime_config.get("runtime_ready", false)),
 	}
 	if _current_input_source != null and _current_input_source.has_method("get_head_position"):
 		snapshot["head_position"] = _coerce_vector3(_current_input_source.get_head_position())
@@ -845,7 +1085,7 @@ func _collect_source_snapshot() -> Dictionary:
 
 func _collect_provider_snapshot() -> Dictionary:
 	var snapshot := _build_mediapipe_session_debug_state()
-	if _source_mode != "mediapipe_python" or _mediapipe_provider_backend == null:
+	if not _is_mediapipe_mode(_source_mode) or _mediapipe_provider_backend == null:
 		snapshot["provider_mode"] = _source_mode
 		snapshot["landmark_count"] = _latest_pose_landmarks.size()
 		return snapshot
@@ -855,7 +1095,7 @@ func _collect_provider_snapshot() -> Dictionary:
 	var metrics: Dictionary = detector_state.get("metrics", {}) if detector_state.get("metrics", {}) is Dictionary else {}
 	var confidences: Dictionary = metrics.get("confidences", {}) if metrics.get("confidences", {}) is Dictionary else {}
 	var events: Array = detector_state.get("events", []) if detector_state.get("events", []) is Array else []
-	snapshot["provider_mode"] = "mediapipe_python"
+	snapshot["provider_mode"] = _source_mode
 	snapshot["tracking_state"] = detector_state.get("tracking_state", "")
 	snapshot["head_confidence"] = float(confidences.get("head", 0.0))
 	snapshot["torso_confidence"] = float(confidences.get("torso", 0.0))
@@ -883,7 +1123,12 @@ func _build_mediapipe_session_debug_state() -> Dictionary:
 		"owner_id": owner_id,
 		"borrowed": _mediapipe_input_source_is_borrowed,
 		"provider_live": provider_live,
-		"stream_url": String(_mediapipe_session_metadata.get("stream_url", DEFAULT_MEDIAPIPE_STREAM_URL)),
+		"stream_url": str(_mediapipe_session_metadata.get("stream_url", DEFAULT_MEDIAPIPE_STREAM_URL)),
+		"runtime_mode": str(_mediapipe_session_metadata.get("runtime_mode", "")),
+		"camera_source": str(_mediapipe_session_metadata.get("camera_source", "")),
+		"fixture_key": str(_mediapipe_session_metadata.get("fixture_key", "")),
+		"runtime_status": _mediapipe_runtime_status,
+		"runtime_last_error": _mediapipe_runtime_last_error,
 		"known_limitation": "cross-lane duplicate prevention only works when the owner lane publishes a session through AeroProviderSessionRegistry",
 	}
 
@@ -968,8 +1213,9 @@ func _update_debug_surfaces() -> void:
 		int(trace_status.get("frame_count", 0)),
 		_trace_export_root_edit.text,
 	]
-	_preview_stats_label.text = "Source: %s\nTranslation: %s\nRotation(deg): %s" % [
-		_source_mode,
+	_preview_stats_label.text = "Source: %s\nRuntime: %s\nTranslation: %s\nRotation(deg): %s" % [
+		_source_mode_label(_source_mode),
+		_mediapipe_runtime_status,
 		current_translation,
 		Vector3(rad_to_deg(current_rotation.x), rad_to_deg(current_rotation.y), rad_to_deg(current_rotation.z)),
 	]
@@ -983,6 +1229,8 @@ func _build_runtime_debug_text(debug_state: Dictionary) -> String:
 	var tracking_state: Dictionary = debug_state.get("tracking_state", {}) if debug_state.get("tracking_state", {}) is Dictionary else {}
 	var lines := [
 		"Mode: %s" % str(debug_state.get("control_mode", "")),
+		"Input source mode: %s" % _source_mode_label(_source_mode),
+		"MediaPipe runtime: %s" % _mediapipe_runtime_status,
 		"Enabled: %s" % str(debug_state.get("enabled", false)),
 		"Camera attached: %s (%s)" % [str(debug_state.get("camera_attached", false)), str(debug_state.get("camera_path", ""))],
 		"Input source attached: %s (%s)" % [str(debug_state.get("input_source_attached", false)), str(debug_state.get("input_source_path", ""))],
@@ -1029,21 +1277,36 @@ func _build_trace_debug_text(trace_status: Dictionary) -> String:
 	return "\n".join(lines)
 
 func _build_fixture_debug_text(active_profile: Dictionary) -> String:
+	var effective_video: Dictionary = _fixture_runtime_config.get("effective_video", {}) if _fixture_runtime_config.get("effective_video", {}) is Dictionary else {}
+	var sidecar: Dictionary = _fixture_runtime_config.get("sidecar", {}) if _fixture_runtime_config.get("sidecar", {}) is Dictionary else {}
+	var sidecar_summary: Dictionary = _fixture_runtime_config.get("sidecar_summary", {}) if _fixture_runtime_config.get("sidecar_summary", {}) is Dictionary else {}
 	var lines := [
 		"Fixture key: %s" % _fixture_key_edit.text.strip_edges(),
-		"Video path: %s" % _fixture_video_path_edit.text.strip_edges(),
+		"Configured video path: %s" % _fixture_video_path_edit.text.strip_edges(),
+		"Resolved replay source: %s" % str(effective_video.get("display_path", "")),
+		"Replay source ready: %s" % str(bool(_fixture_runtime_config.get("runtime_ready", false))),
 		"Sidecar path: %s" % _fixture_sidecar_path_edit.text.strip_edges(),
+		"Resolved sidecar: %s" % str(sidecar.get("display_path", "")),
+		"Sample-source hint: %s" % str(_fixture_runtime_config.get("sample_source_hint", "")),
 		"Trace export root: %s" % _trace_export_root_edit.text.strip_edges(),
 		"Active profile path: %s" % str(active_profile.get("source_path", "")),
 		"",
+		"Sidecar summary:",
+		"- fixture_id: %s" % str(sidecar_summary.get("fixture_id", "")),
+		"- feature/family: %s / %s" % [str(sidecar_summary.get("feature", "")), str(sidecar_summary.get("family", ""))],
+		"- primary channel/axis: %s / %s" % [str(sidecar_summary.get("primary_channel", "")), str(sidecar_summary.get("primary_axis", ""))],
+		"- semantic direction: %s" % str(sidecar_summary.get("semantic_direction", "")),
+		"- expected windows: %s" % str(sidecar_summary.get("expected_window_count", 0)),
+		"",
 		"Harness readiness:",
 		"- left config/debug panel: ready",
-		"- 16:9 world preview: ready",
-		"- bottom-left media/tracking inset: ready with honest fallback",
+		"- 1920×1080 world preview: ready",
+		"- bottom-left media/tracking inset: wired for fake/live/replay truth",
+		"- donor-style AutoStartManager seam: wired for owned MediaPipe live + replay",
 		"- shared-session reuse seam: integrated on the camera-gesture side",
 		"- duplicate-prevention limit: owner lanes still need to publish registry sessions for true cross-lane reuse",
-		"- prerecorded fixture path fields: scaffolded",
-		"- replay/oracle runner: pending later slice",
+		"- fixture replay path: wired for trace export and later oracle work",
+		"- oracle assertions: still pending later slice",
 	]
 	return "\n".join(lines)
 
@@ -1062,16 +1325,16 @@ func _build_provider_debug_text() -> String:
 	return "\n".join(lines)
 
 func _build_media_inset_status_line() -> String:
-	if _source_mode == "fake":
+	if _source_mode == SOURCE_MODE_FAKE:
 		return "Inset: fake source preview with tracking overlay"
 	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming()):
-		return "Inset: MediaPipe camera feed live + tracking overlay"
+		return "Inset: %s feed live + tracking overlay" % _source_mode_label(_source_mode)
 	if _mediapipe_camera_view != null:
-		return "Inset: MediaPipe seam mounted, camera feed not live yet; overlay remains active"
+		return "Inset: %s requested, waiting for stream (%s)" % [_source_mode_label(_source_mode), _mediapipe_runtime_status]
 	return "Inset: MediaPipe camera view seam unavailable; overlay-only fallback"
 
 func _refresh_media_inset_surface() -> void:
-	var wants_mediapipe_view := _source_mode == "mediapipe_python" and _mediapipe_camera_view != null
+	var wants_mediapipe_view := _is_mediapipe_mode(_source_mode) and _mediapipe_camera_view != null
 	if wants_mediapipe_view and _mediapipe_camera_view.has_method("start_stream"):
 		call_deferred("_ensure_mediapipe_camera_stream")
 	elif _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("stop_stream"):
@@ -1080,7 +1343,7 @@ func _refresh_media_inset_surface() -> void:
 	_media_placeholder_label.text = _build_media_placeholder_text()
 
 func _ensure_mediapipe_camera_stream() -> void:
-	if _source_mode != "mediapipe_python" or _mediapipe_camera_view == null:
+	if not _is_mediapipe_mode(_source_mode) or _mediapipe_camera_view == null:
 		return
 	if _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming()):
 		_media_inset_placeholder.visible = false
@@ -1092,11 +1355,14 @@ func _ensure_mediapipe_camera_stream() -> void:
 		_media_placeholder_label.text = _build_media_placeholder_text()
 
 func _build_media_placeholder_text() -> String:
-	if _source_mode == "fake":
+	if _source_mode == SOURCE_MODE_FAKE:
 		return "Fake source active\nTracking overlay shows normalized head motion."
 	if _mediapipe_camera_view == null:
 		return "MediaPipe camera view not mounted in this addon seam yet.\nTracking overlay still shows controller-relevant motion."
-	return "MediaPipe source active, but live camera texture is not streaming yet.\nThis slice keeps the inset structure honest and ready for the final seam."
+	if _source_mode == SOURCE_MODE_MEDIAPIPE_REPLAY:
+		var effective_video: Dictionary = _fixture_runtime_config.get("effective_video", {}) if _fixture_runtime_config.get("effective_video", {}) is Dictionary else {}
+		return "MediaPipe replay selected\nWaiting for fixture stream: %s" % str(effective_video.get("display_path", _fixture_video_path_edit.text.strip_edges()))
+	return "MediaPipe live selected\nWaiting for live camera preview stream."
 
 func _ensure_mediapipe_camera_view_if_possible() -> void:
 	if not ResourceLoader.exists(MEDIAPIPE_CAMERA_VIEW_PATH):
@@ -1152,8 +1418,10 @@ func _build_trace_context() -> Dictionary:
 		"fixture_key": _fixture_key_edit.text.strip_edges(),
 		"fixture_video_path": _fixture_video_path_edit.text.strip_edges(),
 		"fixture_sidecar_path": _fixture_sidecar_path_edit.text.strip_edges(),
+		"fixture_runtime_config": _trace_store.to_json_safe(_fixture_runtime_config),
 		"profile_path_edit": _profile_path_edit.text.strip_edges(),
 		"source_mode": _source_mode,
+		"source_mode_label": _source_mode_label(_source_mode),
 		"active_profile": active_profile,
 	}
 
