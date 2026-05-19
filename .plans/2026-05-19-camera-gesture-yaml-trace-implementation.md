@@ -60,7 +60,7 @@ The stopping condition for this plan is explicit: keep executing slices until th
 
 **Status:** ✅ Complete
 
-**Results:** Landed the repo-local YAML profile seam in `aerobeat-tool-camera-gesture-control`: added a durable v1 profile contract doc, checked in `assets/profiles/camera_gesture/default_v1.camera_gesture.yaml`, upgraded `CameraGestureController` to load/validate/apply YAML-first profile documents while preserving legacy flat JSON compatibility, kept active `Camera3D` ownership runtime-provided, exposed active profile identity/path/hash/schema metadata through `get_debug_state()`, and updated README/testbed/tests to reflect the new config story. Validation included `.testbed` addon restore, headless import, full repo-local GUT pass, `git diff --check`, and a headless `--quit-after 2` smoke run. Commit/push details: landed on `main` in commit `feat: land yaml camera gesture profile seam`.
+**Results:** Landed the repo-local YAML profile seam in `aerobeat-tool-camera-gesture-control`: added a durable v1 profile contract doc, checked in `assets/profiles/camera_gesture/default_v1.camera_gesture.yaml`, upgraded `CameraGestureController` to load/validate/apply YAML-first profile documents while preserving legacy flat JSON compatibility, kept active `Camera3D` ownership runtime-provided, exposed active profile identity/path/hash/schema metadata through `get_debug_state()`, and updated README/testbed/tests to reflect the new config story. Validation included `.testbed` addon restore, headless import, full repo-local GUT pass, `git diff --check`, and a headless `--quit-after 2` smoke run. Commit/push details: landed on `main` in commit `30d3a63` (`feat: land yaml camera gesture profile seam`).
 
 ---
 
@@ -84,9 +84,9 @@ The stopping condition for this plan is explicit: keep executing slices until th
 - `.testbed/tests/*`
 - `.testbed/addons.jsonc`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Rebuilt the hidden `.testbed` into a practical 16:9 harness with a left YAML/profile/debug/config panel, a clearer right-side 3D world preview for parallax/depth validation, and a bottom-left MediaPipe/video + tracking inset. Added YAML-first profile workflow controls (load checked-in default, load path, reload path, export YAML snapshot, reset runtime defaults), initial trace scaffolding (start/stop/export capture, single-snapshot export, JSON manifest + JSONL frames + notes + Markdown summary, resolved YAML snapshot), and staged prerecorded-fixture folder structure/docs under `.testbed/assets/fixtures/camera_gesture/` for later replay/oracle work. Validation included headless import, full repo-local GUT pass, `git diff --check`, and headless smoke run. Commit/push details: landed on `main` in commit `6baa71b` (`feat: upgrade camera gesture harness trace surface`). Known remaining seam: the MediaPipe inset is an honest v1 that still reaches through the current addon seam for some pose/debug wiring; a cleaner shared debug surface is still a follow-up for the shared input-core/final integration slices.
 
 ---
 
@@ -106,9 +106,9 @@ The stopping condition for this plan is explicit: keep executing slices until th
 **Files Created/Deleted/Modified:**
 - input-core shared contract files/docs/tests as needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Landed a small, explicit shared in-process provider/session reuse seam in `aerobeat-input-core` via `AeroProviderSessionRegistry`, giving downstream repos a repo-agnostic way to publish, request, acquire, release, and unpublish already-active providers with owner/borrower semantics. The seam intentionally does not auto-start/stop providers or hide ownership transfer; it just makes shared reuse explicit and usable. Added docs, unit coverage, and light testbed/README surfacing. Validation included headless import, targeted GUT for the registry, full unit-dir GUT, and scoped `git diff --check`. Commit/push details: landed on `main` in commit `d8abd1d` (`Add shared provider session reuse seam`). For camera-gesture adoption, the next step is to request/acquire a published `mediapipe_python` session before starting a new provider, publish a newly created provider session when ownership stays local, and release/unpublish appropriately on teardown.
 
 ---
 
@@ -128,25 +128,25 @@ The stopping condition for this plan is explicit: keep executing slices until th
 **Files Created/Deleted/Modified:**
 - integration and validation artifacts as needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Integrated the camera-gesture testbed with the input-core shared provider-session seam. The harness now requests/acquires an already-published `mediapipe_python` session before any local startup, lazily starts its own MediaPipe provider only when needed, publishes locally owned sessions back through `AeroProviderSessionRegistry`, and cleanly releases or unpublishes on switch-away / teardown according to borrower-vs-owner state. The trace/debug surfaces now expose session-role metadata and the known duplicate-prevention boundary directly, README/testbed docs were refreshed, and repo-local GUT coverage now explicitly proves both borrowed-session reuse and owned-session publish/unpublish behavior. Validation included refreshing `.testbed` addons so the mounted input-core actually contained the new registry seam, headless import, `--check-only` parse checks for the testbed and new tests, targeted GUT for session reuse / controller / testbed scene, full repo-local GUT, `git diff --check`, and a headless `--quit-after 1000` smoke run. Honest remaining blocker: the currently mounted `aerobeat-input-mediapipe-python` owner/proving path still does not auto-publish its live provider session, so true cross-lane duplicate prevention is only available once that owner lane adopts the same registry seam. Commit/push details: pushed to `main` as `feat: integrate shared mediapipe session reuse`.
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ⚠️ Partial
 
-**What We Built:** Pending.
+**What We Built:** Camera-gesture is now consumer/owner-aware for shared MediaPipe sessions inside the hidden testbed: YAML profile load/apply behavior remains covered, config/debug/trace surfaces are in place, camera attach/detach rules are explicitly tested, and the testbed will reuse an already-published `mediapipe_python` provider instead of starting a duplicate local one. When camera-gesture owns the provider, it now publishes that session for later consumers and unpublishes/releases it cleanly on teardown.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-01` and `REF-02` remain satisfied by the YAML-first profile/runtime/testbed stack now exercised by the full repo-local QA pass. `REF-05` is satisfied on the consumer side: camera-gesture adopts the new `AeroProviderSessionRegistry` seam and exposes its ownership/borrower state in trace/debug outputs. `REF-06` is only partially satisfied for end-to-end duplicate prevention because the mounted MediaPipe donor/owner path still does not auto-publish its live provider session; once that upstream owner lane publishes, the no-duplicate path becomes fully active across repos.
 
 **Commits:**
-- Pending.
+- `feat: integrate shared mediapipe session reuse` (pushed to `main`)
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** Refreshing `.testbed` addons was part of the truth check, not busywork: the initial mounted `aerobeat-input-core` copy was stale enough that the registry file did not exist locally, so code-only inspection would have overstated readiness. The remaining technical seam is not in camera-gesture anymore; it is the owner-lane publication gap in the mounted MediaPipe proving path.
 
 ---
 
-*Completed on Pending*
+*Completed on 2026-05-19*

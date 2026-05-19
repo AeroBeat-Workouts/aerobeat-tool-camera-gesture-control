@@ -96,6 +96,27 @@ func test_attach_camera_and_gesture_profile_move_camera_with_clamps() -> void:
 	assert_almost_eq(translation.x, 0.1, 0.001, "Translation X should clamp to the profile maximum")
 	assert_almost_eq(absf(translation.y), 0.1, 0.001, "Translation Y should clamp to the profile maximum")
 
+func test_detach_camera_restores_rest_transform() -> void:
+	var controller := _make_controller()
+	var source := _make_source()
+	var camera := _make_camera()
+	camera.position = Vector3(1.0, 2.0, 3.0)
+	camera.basis = Basis.from_euler(Vector3(0.1, 0.2, 0.3))
+	var rest_position := camera.position
+	var rest_basis := camera.basis
+	source.head_position = Vector3(1.0, 0.0, 0.8)
+	controller.attach_camera(camera)
+	controller.attach_input_source(source)
+	controller.apply_profile({
+		"mode": "gesture",
+		"smoothing": 0.0,
+	})
+	controller._process(0.1)
+	assert_ne(camera.position, rest_position, "Gesture processing should move the camera before detach")
+	controller.detach_camera()
+	assert_eq(camera.position, rest_position, "Detaching should restore the original camera position")
+	assert_eq(camera.basis, rest_basis, "Detaching should restore the original camera basis")
+
 func test_load_checked_in_default_yaml_profile_and_expose_profile_metadata() -> void:
 	var controller := _make_controller()
 	var profile_path := ProjectSettings.globalize_path("res://%s" % DEFAULT_PROFILE_REPO_PATH)

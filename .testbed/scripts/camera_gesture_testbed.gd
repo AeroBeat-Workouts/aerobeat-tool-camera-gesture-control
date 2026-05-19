@@ -12,6 +12,11 @@ const FIXTURE_PLACEHOLDER_VIDEO_PATH := "res://assets/fixtures/camera_gesture/he
 const FIXTURE_PLACEHOLDER_SIDECAR_PATH := "res://assets/fixtures/camera_gesture/head_pose/candidates/example_take_01.fixture.yaml"
 const MEDIAPIPE_PROVIDER_PATH := "res://addons/aerobeat-input-mediapipe-python/src/input_provider.gd"
 const MEDIAPIPE_CAMERA_VIEW_PATH := "res://addons/aerobeat-input-mediapipe-python/src/camera_view.gd"
+const PROVIDER_SESSION_REGISTRY_PATH := "res://addons/aerobeat-input-core/src/runtime/provider_session_registry.gd"
+const DEFAULT_MEDIAPIPE_STREAM_URL := "http://127.0.0.1:4243/camera"
+const MEDIAPIPE_SESSION_OWNER_ID := "aerobeat-tool-camera-gesture-control:testbed"
+const MEDIAPIPE_SESSION_CONSUMER_ID := "aerobeat-tool-camera-gesture-control:testbed_consumer"
+const MEDIAPIPE_SESSION_KEY := "mediapipe_python/camera_gesture_testbed"
 const SOURCE_OPTIONS := ["fake", "mediapipe_python"]
 const CONTROL_MODE_OPTIONS := ["gesture", "mouse_wasd", "disabled"]
 const SAMPLE_SOURCE_OPTIONS := ["head_position", "head_velocity", "head_rotation"]
@@ -51,6 +56,11 @@ var _fake_input_source: FakeCameraInputSource
 var _mediapipe_input_source: Node = null
 var _mediapipe_provider_backend: Node = null
 var _mediapipe_camera_view = null
+var _mediapipe_input_source_is_borrowed := false
+var _mediapipe_owned_session_key := ""
+var _mediapipe_borrowed_session_key := ""
+var _mediapipe_session_owner_id := ""
+var _mediapipe_session_metadata := {}
 var _source_mode := "fake"
 var _latest_provider_state := {}
 var _latest_source_snapshot := {}
@@ -104,8 +114,7 @@ func _notification(what: int) -> void:
 		return
 	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("stop_stream"):
 		_mediapipe_camera_view.stop_stream()
-	if _mediapipe_input_source != null and _mediapipe_input_source.has_method("stop"):
-		_mediapipe_input_source.stop()
+	_teardown_mediapipe_runtime()
 
 func _build_layout() -> void:
 	var root := HSplitContainer.new()
@@ -481,21 +490,8 @@ func _setup_sources() -> void:
 	add_child(_fake_input_source)
 	_fake_input_source.set_process(true)
 
-	if ResourceLoader.exists(MEDIAPIPE_PROVIDER_PATH):
-		var script: GDScript = load(MEDIAPIPE_PROVIDER_PATH)
-		if script != null:
-			_mediapipe_input_source = script.new()
-			_mediapipe_input_source.name = "MediaPipePythonInputSource"
-			add_child(_mediapipe_input_source)
-			if _mediapipe_input_source.has_method("start"):
-				var started := bool(_mediapipe_input_source.start("{}"))
-				if started:
-					_wire_mediapipe_backend_if_possible()
-				else:
-					_mediapipe_input_source.queue_free()
-					_mediapipe_input_source = null
 	_ensure_mediapipe_camera_view_if_possible()
-	if _mediapipe_input_source == null and _source_option != null:
+	if not ResourceLoader.exists(MEDIAPIPE_PROVIDER_PATH) and _source_option != null:
 		_source_mode = "fake"
 		_source_option.select(0)
 		_source_option.set_item_disabled(1, true)
@@ -504,11 +500,12 @@ func _switch_input_source(mode: String) -> void:
 	_source_mode = mode if SOURCE_OPTIONS.has(mode) else "fake"
 	match _source_mode:
 		"mediapipe_python":
-			if _mediapipe_input_source != null and _controller.attach_input_source(_mediapipe_input_source):
+			if _ensure_mediapipe_input_source() and _controller.attach_input_source(_mediapipe_input_source):
 				_current_input_source = _mediapipe_input_source
 				_wire_mediapipe_backend_if_possible()
 				_update_status("Using MediaPipe Python input source")
 			else:
+				_release_borrowed_mediapipe_session()
 				_current_input_source = _fake_input_source
 				_controller.attach_input_source(_fake_input_source)
 				_source_mode = "fake"
@@ -516,6 +513,7 @@ func _switch_input_source(mode: String) -> void:
 					_source_option.select(0)
 				_update_status("MediaPipe unavailable; fell back to fake source")
 		_:
+			_release_borrowed_mediapipe_session()
 			_current_input_source = _fake_input_source
 			_controller.attach_input_source(_fake_input_source)
 			_update_status("Using fake input source")
@@ -523,6 +521,165 @@ func _switch_input_source(mode: String) -> void:
 	for control in _fake_controls.values():
 		control.visible = _current_input_source == _fake_input_source
 	_refresh_media_inset_surface()
+
+func _provider_session_registry_available() -> bool:
+	return ResourceLoader.exists(PROVIDER_SESSION_REGISTRY_PATH)
+
+func _load_provider_session_registry():
+	if not _provider_session_registry_available():
+		return null
+	return load(PROVIDER_SESSION_REGISTRY_PATH)
+
+func _ensure_mediapipe_input_source() -> bool:
+	if _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source):
+		return true
+	if _try_acquire_shared_mediapipe_session():
+		return true
+	return _start_local_mediapipe_input_source()
+
+func _try_acquire_shared_mediapipe_session() -> bool:
+	if _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source) and _mediapipe_input_source_is_borrowed:
+		return true
+	var registry = _load_provider_session_registry()
+	if registry == null:
+		return false
+	var request: Dictionary = registry.request_session({
+		"provider_id": "mediapipe_python",
+	})
+	if not bool(request.get("ok", false)):
+		return false
+	var session: Dictionary = request.get("session", {}) if request.get("session", {}) is Dictionary else {}
+	var session_key := String(session.get("session_key", "")).strip_edges()
+	if session_key.is_empty():
+		return false
+	var acquire: Dictionary = registry.acquire_session(MEDIAPIPE_SESSION_CONSUMER_ID, {"session_key": session_key})
+	if not bool(acquire.get("ok", false)):
+		return false
+	var acquired_session: Dictionary = acquire.get("session", {}) if acquire.get("session", {}) is Dictionary else {}
+	var shared_provider := acquired_session.get("provider", null) as Node
+	if shared_provider == null or not is_instance_valid(shared_provider):
+		registry.release_session(MEDIAPIPE_SESSION_CONSUMER_ID, session_key)
+		return false
+	_disconnect_mediapipe_backend_if_possible()
+	_mediapipe_input_source = shared_provider
+	_mediapipe_input_source_is_borrowed = true
+	_mediapipe_borrowed_session_key = session_key
+	_mediapipe_owned_session_key = ""
+	_mediapipe_session_owner_id = String(acquired_session.get("owner_id", "")).strip_edges()
+	_apply_mediapipe_session_metadata(acquired_session)
+	_wire_mediapipe_backend_if_possible()
+	return true
+
+func _start_local_mediapipe_input_source() -> bool:
+	if _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source) and not _mediapipe_input_source_is_borrowed:
+		return true
+	if not ResourceLoader.exists(MEDIAPIPE_PROVIDER_PATH):
+		return false
+	var script: GDScript = load(MEDIAPIPE_PROVIDER_PATH)
+	if script == null:
+		return false
+	_disconnect_mediapipe_backend_if_possible()
+	var local_input_source: Node = script.new()
+	local_input_source.name = "MediaPipePythonInputSource"
+	add_child(local_input_source)
+	var started := true
+	if local_input_source.has_method("start"):
+		started = bool(local_input_source.start("{}"))
+	if not started:
+		local_input_source.queue_free()
+		return false
+	_mediapipe_input_source = local_input_source
+	_mediapipe_input_source_is_borrowed = false
+	_mediapipe_borrowed_session_key = ""
+	_mediapipe_session_owner_id = MEDIAPIPE_SESSION_OWNER_ID
+	_apply_mediapipe_session_metadata({"metadata": _default_mediapipe_session_metadata()})
+	_wire_mediapipe_backend_if_possible()
+	_publish_owned_mediapipe_session()
+	return true
+
+func _publish_owned_mediapipe_session() -> Dictionary:
+	if _mediapipe_input_source == null or not is_instance_valid(_mediapipe_input_source) or _mediapipe_input_source_is_borrowed:
+		return {}
+	var registry = _load_provider_session_registry()
+	if registry == null:
+		return {}
+	var provider := _mediapipe_input_source as AeroInputProvider
+	if provider == null:
+		return {}
+	var publish: Dictionary = registry.publish_session(
+		MEDIAPIPE_SESSION_OWNER_ID,
+		provider,
+		{
+			"session_key": MEDIAPIPE_SESSION_KEY,
+			"metadata": _default_mediapipe_session_metadata(),
+		}
+	)
+	if bool(publish.get("ok", false)):
+		var session: Dictionary = publish.get("session", {}) if publish.get("session", {}) is Dictionary else {}
+		_mediapipe_owned_session_key = String(session.get("session_key", MEDIAPIPE_SESSION_KEY)).strip_edges()
+		_mediapipe_session_owner_id = MEDIAPIPE_SESSION_OWNER_ID
+		_apply_mediapipe_session_metadata(session)
+	return publish
+
+func _release_borrowed_mediapipe_session() -> void:
+	if not _mediapipe_input_source_is_borrowed:
+		return
+	var borrowed_session_key := _mediapipe_borrowed_session_key
+	var registry = _load_provider_session_registry()
+	if registry != null and not borrowed_session_key.is_empty():
+		registry.release_session(MEDIAPIPE_SESSION_CONSUMER_ID, borrowed_session_key)
+	_disconnect_mediapipe_backend_if_possible()
+	_mediapipe_input_source = null
+	_mediapipe_input_source_is_borrowed = false
+	_mediapipe_borrowed_session_key = ""
+	_mediapipe_session_owner_id = ""
+	_mediapipe_session_metadata = {}
+
+func _teardown_mediapipe_runtime() -> void:
+	_release_borrowed_mediapipe_session()
+	if _mediapipe_input_source == null or not is_instance_valid(_mediapipe_input_source):
+		return
+	var owned_source := _mediapipe_input_source
+	var registry = _load_provider_session_registry()
+	if registry != null and not _mediapipe_owned_session_key.is_empty():
+		registry.unpublish_session(MEDIAPIPE_SESSION_OWNER_ID, _mediapipe_owned_session_key)
+	_disconnect_mediapipe_backend_if_possible()
+	if owned_source.has_method("stop"):
+		owned_source.stop()
+	if owned_source.get_parent() == self:
+		owned_source.queue_free()
+	_mediapipe_input_source = null
+	_mediapipe_input_source_is_borrowed = false
+	_mediapipe_owned_session_key = ""
+	_mediapipe_borrowed_session_key = ""
+	_mediapipe_session_owner_id = ""
+	_mediapipe_session_metadata = {}
+
+func _disconnect_mediapipe_backend_if_possible() -> void:
+	if _mediapipe_provider_backend != null:
+		var pose_callable := Callable(self, "_on_mediapipe_pose_updated")
+		if _mediapipe_provider_backend.has_signal("pose_updated") and _mediapipe_provider_backend.is_connected(&"pose_updated", pose_callable):
+			_mediapipe_provider_backend.disconnect(&"pose_updated", pose_callable)
+	_mediapipe_provider_backend = null
+	_latest_pose_landmarks.clear()
+	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("update_overlay"):
+		_mediapipe_camera_view.update_overlay([])
+
+func _default_mediapipe_session_metadata() -> Dictionary:
+	return {
+		"lane": "camera_gesture_testbed",
+		"device": "camera0",
+		"stream_url": DEFAULT_MEDIAPIPE_STREAM_URL,
+	}
+
+func _apply_mediapipe_session_metadata(session_record: Dictionary) -> void:
+	var metadata: Dictionary = session_record.get("metadata", {}) if session_record.get("metadata", {}) is Dictionary else {}
+	_mediapipe_session_metadata = metadata.duplicate(true)
+	var stream_url := String(_mediapipe_session_metadata.get("stream_url", DEFAULT_MEDIAPIPE_STREAM_URL)).strip_edges()
+	if stream_url.is_empty():
+		stream_url = DEFAULT_MEDIAPIPE_STREAM_URL
+	if _mediapipe_camera_view != null:
+		_mediapipe_camera_view.stream_url = stream_url
 
 func _load_default_profile_on_boot() -> void:
 	var default_path := _default_profile_absolute_path()
@@ -618,6 +775,7 @@ func _export_trace_payload(reason: String) -> Dictionary:
 	var export_root := _trace_export_root_edit.text.strip_edges()
 	var manifest_extra := {
 		"reason": reason,
+		"provider_session": _build_mediapipe_session_debug_state(),
 		"fixture": {
 			"key": _fixture_key_edit.text.strip_edges(),
 			"video_path": _fixture_video_path_edit.text.strip_edges(),
@@ -686,24 +844,47 @@ func _collect_source_snapshot() -> Dictionary:
 	return snapshot
 
 func _collect_provider_snapshot() -> Dictionary:
+	var snapshot := _build_mediapipe_session_debug_state()
 	if _source_mode != "mediapipe_python" or _mediapipe_provider_backend == null:
-		return {
-			"provider_mode": _source_mode,
-			"landmark_count": _latest_pose_landmarks.size(),
-		}
+		snapshot["provider_mode"] = _source_mode
+		snapshot["landmark_count"] = _latest_pose_landmarks.size()
+		return snapshot
 	var detector_state: Dictionary = {}
 	if _mediapipe_provider_backend.has_method("get_detector_state"):
 		detector_state = _mediapipe_provider_backend.get_detector_state()
 	var metrics: Dictionary = detector_state.get("metrics", {}) if detector_state.get("metrics", {}) is Dictionary else {}
 	var confidences: Dictionary = metrics.get("confidences", {}) if metrics.get("confidences", {}) is Dictionary else {}
 	var events: Array = detector_state.get("events", []) if detector_state.get("events", []) is Array else []
+	snapshot["provider_mode"] = "mediapipe_python"
+	snapshot["tracking_state"] = detector_state.get("tracking_state", "")
+	snapshot["head_confidence"] = float(confidences.get("head", 0.0))
+	snapshot["torso_confidence"] = float(confidences.get("torso", 0.0))
+	snapshot["event_count"] = events.size()
+	snapshot["landmark_count"] = _latest_pose_landmarks.size()
+	return snapshot
+
+func _build_mediapipe_session_debug_state() -> Dictionary:
+	var provider_live := _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source)
+	var session_role := "inactive"
+	var session_key := ""
+	if _mediapipe_input_source_is_borrowed:
+		session_role = "borrowed"
+		session_key = _mediapipe_borrowed_session_key
+	elif provider_live:
+		session_role = "owned"
+		session_key = _mediapipe_owned_session_key
+	var owner_id := _mediapipe_session_owner_id
+	if owner_id.is_empty() and session_role == "owned":
+		owner_id = MEDIAPIPE_SESSION_OWNER_ID
 	return {
-		"provider_mode": "mediapipe_python",
-		"tracking_state": detector_state.get("tracking_state", ""),
-		"head_confidence": float(confidences.get("head", 0.0)),
-		"torso_confidence": float(confidences.get("torso", 0.0)),
-		"event_count": events.size(),
-		"landmark_count": _latest_pose_landmarks.size(),
+		"registry_available": _provider_session_registry_available(),
+		"session_role": session_role,
+		"session_key": session_key,
+		"owner_id": owner_id,
+		"borrowed": _mediapipe_input_source_is_borrowed,
+		"provider_live": provider_live,
+		"stream_url": String(_mediapipe_session_metadata.get("stream_url", DEFAULT_MEDIAPIPE_STREAM_URL)),
+		"known_limitation": "cross-lane duplicate prevention only works when the owner lane publishes a session through AeroProviderSessionRegistry",
 	}
 
 func _read_current_source_confidence() -> float:
@@ -859,6 +1040,8 @@ func _build_fixture_debug_text(active_profile: Dictionary) -> String:
 		"- left config/debug panel: ready",
 		"- 16:9 world preview: ready",
 		"- bottom-left media/tracking inset: ready with honest fallback",
+		"- shared-session reuse seam: integrated on the camera-gesture side",
+		"- duplicate-prevention limit: owner lanes still need to publish registry sessions for true cross-lane reuse",
 		"- prerecorded fixture path fields: scaffolded",
 		"- replay/oracle runner: pending later slice",
 	]
@@ -924,17 +1107,21 @@ func _ensure_mediapipe_camera_view_if_possible() -> void:
 	_mediapipe_camera_view = camera_view_script.new()
 	_mediapipe_camera_view.name = "MediaPipeCameraView"
 	_mediapipe_camera_view.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_mediapipe_camera_view.stream_url = "http://127.0.0.1:4243/camera"
+	_mediapipe_camera_view.stream_url = DEFAULT_MEDIAPIPE_STREAM_URL
 	_mediapipe_camera_view.show_overlay = true
 	_camera_feed_host.add_child(_mediapipe_camera_view)
 	_camera_feed_host.move_child(_mediapipe_camera_view, 0)
 
 func _wire_mediapipe_backend_if_possible() -> void:
-	if _mediapipe_input_source == null:
+	if _mediapipe_input_source == null or not is_instance_valid(_mediapipe_input_source):
+		_disconnect_mediapipe_backend_if_possible()
 		return
 	var backend: Variant = _mediapipe_input_source.get("_provider")
 	if not (backend is Node):
+		_disconnect_mediapipe_backend_if_possible()
 		return
+	if _mediapipe_provider_backend != backend:
+		_disconnect_mediapipe_backend_if_possible()
 	_mediapipe_provider_backend = backend
 	var pose_callable := Callable(self, "_on_mediapipe_pose_updated")
 	if _mediapipe_provider_backend.has_signal("pose_updated") and not _mediapipe_provider_backend.is_connected(&"pose_updated", pose_callable):

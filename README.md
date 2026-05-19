@@ -87,7 +87,10 @@ The `.testbed/` workbench provides:
 - trace-capture scaffolding that exports run manifests, JSONL frame traces, Markdown summaries, and a resolved YAML profile snapshot
 - fixture-key / prerecorded-video / sidecar-path fields so the later replay-oracle slice can reuse the same surface
 - MediaPipe-Python-via-GodotEnv integration when that addon mount is available
+- shared in-process MediaPipe session reuse via `AeroProviderSessionRegistry` before any local provider startup
 - fake-input fallback when MediaPipe is not mounted or not running
+
+Current honest limitation: cross-lane duplicate-prevention only works when the owner lane also publishes its active MediaPipe session through the input-core registry. This repo now consumes and publishes that seam, but the mounted MediaPipe proving harness path does not auto-publish yet.
 
 ## Dev/test flow
 
