@@ -117,6 +117,28 @@ func test_detach_camera_restores_rest_transform() -> void:
 	assert_eq(camera.position, rest_position, "Detaching should restore the original camera position")
 	assert_eq(camera.basis, rest_basis, "Detaching should restore the original camera basis")
 
+func test_head_rotation_sample_source_falls_back_to_head_position_when_provider_reports_identity_rotation() -> void:
+	var controller := _make_controller()
+	var source := _make_source()
+	var camera := _make_camera()
+	source.head_position = Vector3(0.85, 0.2, 0.0)
+	source.head_rotation = Quaternion.IDENTITY
+	controller.attach_camera(camera)
+	controller.attach_input_source(source)
+	controller.apply_profile({
+		"mode": "gesture",
+		"sample_source": "head_rotation",
+		"smoothing": 0.0,
+		"max_yaw_degrees": 20.0,
+		"max_pitch_degrees": 12.0,
+	})
+	controller._process(0.1)
+	var debug_state := controller.get_debug_state()
+	var rotation: Vector3 = debug_state.get("current_rotation_radians", Vector3.ZERO)
+	assert_true(absf(rotation.y) > 0.001 or absf(rotation.x) > 0.001, "Identity head-rotation data should fall back to head-position-derived rotation so replay clips still move the camera")
+	var translation: Vector3 = debug_state.get("current_translation", Vector3.ZERO)
+	assert_eq(translation, Vector3.ZERO, "Head-rotation fallback should not introduce translation")
+
 func test_load_checked_in_default_yaml_profile_and_expose_profile_metadata() -> void:
 	var controller := _make_controller()
 	var profile_path := ProjectSettings.globalize_path("res://%s" % DEFAULT_PROFILE_REPO_PATH)

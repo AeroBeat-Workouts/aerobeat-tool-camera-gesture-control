@@ -120,3 +120,12 @@ func test_server_started_signal_does_not_start_camera_stream_before_stabilizatio
 
 	assert_eq(String(instance.get("_mediapipe_runtime_status")), "stabilizing", "Server-started signal should mark replay as stabilizing, not ready")
 	assert_eq(camera_view.start_stream_call_count, 0, "Server-started signal should not eagerly start the camera stream before stabilization completes")
+
+func test_mediapipe_runtime_settings_disable_horizontal_flip_for_replay() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	var replay_settings := JSON.parse_string(String(instance.call("_mediapipe_start_settings_json_for_mode", "mediapipe_replay"))) as Dictionary
+	var live_settings := JSON.parse_string(String(instance.call("_mediapipe_start_settings_json_for_mode", "mediapipe_live"))) as Dictionary
+	assert_eq(bool(replay_settings.get("flip_horizontal", true)), false, "Replay runtime should not mirror provider landmarks against prerecorded video")
+	assert_eq(bool(live_settings.get("flip_horizontal", false)), true, "Live runtime should preserve mirrored camera behavior")

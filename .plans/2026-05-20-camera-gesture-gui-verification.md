@@ -466,6 +466,36 @@ Because the wrapper nodes change the label paths, `/.testbed/scripts/camera_gest
 
 ---
 
+---
+
+### Task 19: Investigate replay landmark alignment and missing 3D response
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-gth`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-01`, `REF-02`, `REF-03`  
+**Prompt:** Investigate the new manually verified replay-state issues. Treat Derrick’s report and screenshot as source truth: replay video now loads, but the MediaPipe dots do not appear to match the MediaPipe/replay texture, and the 3D workspace camera did not visibly respond to the replay clip. Determine whether the remaining problem is in replay landmark alignment, controller hookup/application, or an obvious tracking-quality limitation surfaced honestly by the current footage. Prefer source-side debugging/instrumentation and narrow fixes over guesswork, validate safely without violating the no-headless-MediaPipe rule, update this plan with actual results, commit/push by default, and close the bead only when the source-side findings/fixes are real.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/`
+
+**Files Created/Deleted/Modified:**
+- `/.testbed/scripts/camera_gesture_testbed.gd`
+- `/src/camera_gesture_controller.gd`
+- `/.testbed/tests/test_camera_gesture_controller.gd`
+- `/.testbed/tests/test_camera_gesture_testbed_scene.gd`
+- `Plan update / evidence references only`
+
+**Status:** ✅ Complete
+
+**Results:** Derrick’s screenshot/report narrowed this to two separate source-side issues rather than a single replay-loader failure. First, the overlay mismatch in replay was real alignment drift from runtime config, not just weak footage: the testbed was visually unmirroring the replay texture (`MediaPipeCameraView.flip_horizontal = false`) but still starting/reusing the local provider with its default `flip_horizontal = true`, so provider-normalized landmark X coordinates stayed mirrored against the unmirrored prerecorded video. The fix now routes explicit runtime settings through `camera_gesture_testbed.gd` so local MediaPipe replay sessions start/update with `{"flip_horizontal": false}` while live sessions keep mirrored-camera behavior.
+
+Second, the missing 3D workspace response was primarily controller hookup/application, not replay asset loading: the selected replay sidecar correctly hints `sample_source=head_rotation`, but the current MediaPipe adapter lane still reports `Quaternion.IDENTITY` when no dedicated head-rotation quaternion is available. That meant the controller truthfully applied zero rotation for replay clips that were asking for the `head_rotation` lane. Rather than pretending full 6DOF head pose now exists, the controller now adds a narrow compatibility fallback: when `sample_source=head_rotation` returns identity, it derives rotation-only response from the existing head-position sample and keeps translation at zero. This restores visible camera response for the current 2D replay fixtures without overclaiming a true pose-estimation implementation.
+
+Safe validation stayed repo-local only: `~/.local/bin/godot --headless --path .testbed --check-only --script scripts/camera_gesture_testbed.gd` passed, and `~/.local/bin/godot --headless --path .testbed -s addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gtest=res://tests/test_camera_gesture_controller.gd,res://tests/test_camera_gesture_testbed_scene.gd -gexit` passed (with the wider discovered suite also clean at `27/27`). Remaining truth boundary: this does not prove the replay footage is high-quality enough for perfect anatomical alignment; it fixes a real replay mirroring/config bug and a real controller response gap, while any residual wobble should now be judged against the underlying clip quality instead of these two source defects.
+
+---
+
 ## Final Results
 
 **Status:** ⚠️ Partial

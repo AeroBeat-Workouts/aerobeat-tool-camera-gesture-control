@@ -591,6 +591,7 @@ func _try_acquire_shared_mediapipe_session(requested_mode: String) -> bool:
 
 func _start_local_mediapipe_input_source(requested_mode: String) -> bool:
 	if _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source) and not _mediapipe_input_source_is_borrowed:
+		_apply_local_mediapipe_runtime_settings(requested_mode)
 		_apply_mediapipe_session_metadata({"metadata": _build_mediapipe_session_metadata_for_mode(requested_mode)})
 		_publish_owned_mediapipe_session()
 		return true
@@ -605,7 +606,7 @@ func _start_local_mediapipe_input_source(requested_mode: String) -> bool:
 	add_child(local_input_source)
 	var started := true
 	if local_input_source.has_method("start"):
-		started = bool(local_input_source.start("{}"))
+		started = bool(local_input_source.start(_mediapipe_start_settings_json_for_mode(requested_mode)))
 	if not started:
 		local_input_source.queue_free()
 		return false
@@ -771,6 +772,17 @@ func _requested_mediapipe_camera_source_override(requested_mode: String) -> Stri
 		return ""
 	var effective_video: Dictionary = _fixture_runtime_config.get("effective_video", {}) if _fixture_runtime_config.get("effective_video", {}) is Dictionary else {}
 	return str(effective_video.get("display_path", "")).strip_edges()
+
+func _mediapipe_start_settings_json_for_mode(requested_mode: String) -> String:
+	return JSON.stringify({
+		"flip_horizontal": requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE,
+	})
+
+func _apply_local_mediapipe_runtime_settings(requested_mode: String) -> void:
+	if _mediapipe_input_source == null or not is_instance_valid(_mediapipe_input_source):
+		return
+	if _mediapipe_input_source.has_method("_apply_settings"):
+		_mediapipe_input_source.call("_apply_settings", _mediapipe_start_settings_json_for_mode(requested_mode))
 
 func _build_mediapipe_runtime_signature(requested_mode: String) -> String:
 	return "%s|%s" % [requested_mode, _requested_mediapipe_camera_source_override(requested_mode)]

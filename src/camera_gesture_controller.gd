@@ -316,7 +316,11 @@ func _collect_tracking_sample() -> Dictionary:
 				result["rotation"] = _build_rotation_from_vector(velocity)
 			"head_rotation":
 				var head_rotation := _call_quaternion(_input_source, "get_head_rotation")
-				result["rotation"] = _clamp_rotation(head_rotation.get_euler())
+				if head_rotation.is_equal_approx(Quaternion.IDENTITY):
+					var fallback_head_position := _call_position_variant(_input_source, "get_head_position")
+					result["rotation"] = _build_rotation_from_vector(fallback_head_position)
+				else:
+					result["rotation"] = _clamp_rotation(head_rotation.get_euler())
 				result["translation"] = Vector3.ZERO
 			_:
 				var head_position := _call_position_variant(_input_source, "get_head_position")
