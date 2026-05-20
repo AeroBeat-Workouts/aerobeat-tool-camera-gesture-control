@@ -20,10 +20,11 @@ const DEFAULT_TESTBED_VIEWPORT_SIZE := Vector2i(960, 540)
 const PREVIEW_STACK_MIN_SIZE := Vector2(640.0, 360.0)
 const LEFT_PANEL_SPLIT_OFFSET := 360
 const LEFT_PANEL_MIN_WIDTH := 340
-const MEDIA_INSET_WIDTH := 150.0
-const MEDIA_INSET_HEIGHT := 100.0
-const CAMERA_FEED_MIN_HEIGHT := 132.0
+const MEDIA_INSET_WIDTH := 416.0
+const MEDIA_INSET_HEIGHT := 296.0
+const CAMERA_FEED_MIN_HEIGHT := 236.0
 const DEBUG_TABS_MIN_HEIGHT := 180.0
+const PREVIEW_CORNER_MARGIN := 20.0
 const LEFT_PANEL_FONT_SIZE := 15
 const LEFT_PANEL_INPUT_FONT_SIZE := 14
 const STATUS_LABEL_FONT_SIZE := 16
@@ -101,6 +102,8 @@ var _source_section_content: VBoxContainer
 var _trace_section_content: VBoxContainer
 var _tuning_section_content: VBoxContainer
 var _fake_section_content: VBoxContainer
+var _debug_tabs: TabContainer
+var _debug_tabs_toggle_button: Button
 
 func _ready() -> void:
 	name = "CameraGestureControlTestbed"
@@ -194,27 +197,33 @@ func _bind_layout_nodes() -> void:
 	_preview_stats_label = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/OverlayTop/PreviewStatsLabel") as RichTextLabel
 
 	var media_panel := get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel") as PanelContainer
-	media_panel.offset_left = -MEDIA_INSET_WIDTH - 16.0
-	media_panel.offset_top = -MEDIA_INSET_HEIGHT - 16.0
-	media_panel.offset_right = -16.0
-	media_panel.offset_bottom = -16.0
+	media_panel.offset_left = -MEDIA_INSET_WIDTH - PREVIEW_CORNER_MARGIN
+	media_panel.offset_top = -MEDIA_INSET_HEIGHT - PREVIEW_CORNER_MARGIN
+	media_panel.offset_right = -PREVIEW_CORNER_MARGIN
+	media_panel.offset_bottom = -PREVIEW_CORNER_MARGIN
 
 	var media_title := get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/MediaTitleLabel") as Label
+	media_title.visible = true
 	media_title.add_theme_font_size_override("font_size", MEDIA_TITLE_FONT_SIZE)
 
 	_camera_feed_host = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost") as Control
 	_camera_feed_host.custom_minimum_size = Vector2(0.0, CAMERA_FEED_MIN_HEIGHT)
 	_media_inset_placeholder = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost/MediaInsetPlaceholder") as ColorRect
 	_media_placeholder_label = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost/MediaInsetPlaceholder/MediaPlaceholderLabel") as Label
+	_media_placeholder_label.visible = true
 	_tracking_overlay = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost/TrackingInsetOverlay") as CameraGestureTrackingInsetOverlay
 	_media_inset_status_label = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/MediaInsetStatusLabel") as Label
+	_media_inset_status_label.visible = true
 
-	var debug_tabs := get_node("RootMargin/RootSplit/RightColumn/DebugTabs") as TabContainer
-	debug_tabs.custom_minimum_size = Vector2(0.0, DEBUG_TABS_MIN_HEIGHT)
+	_debug_tabs_toggle_button = get_node("RootMargin/RootSplit/RightColumn/DebugToolbar/DebugTabsToggleButton") as Button
+	_debug_tabs_toggle_button.toggled.connect(_on_debug_tabs_toggle_toggled)
+	_debug_tabs = get_node("RootMargin/RootSplit/RightColumn/DebugTabs") as TabContainer
+	_debug_tabs.custom_minimum_size = Vector2(0.0, DEBUG_TABS_MIN_HEIGHT)
 	_runtime_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Runtime/RuntimeMargin/RuntimeDebugLabel") as RichTextLabel
 	_trace_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Trace/TraceMargin/TraceDebugLabel") as RichTextLabel
 	_fixture_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Fixture/FixtureMargin/FixtureDebugLabel") as RichTextLabel
 	_provider_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Provider/ProviderMargin/ProviderDebugLabel") as RichTextLabel
+	_apply_debug_tabs_visibility(_debug_tabs_toggle_button.button_pressed)
 
 func _populate_layout_controls() -> void:
 	_profile_section_content.get_node("SectionTitleLabel").add_theme_font_size_override("font_size", SECTION_TITLE_FONT_SIZE)
@@ -1521,6 +1530,16 @@ func _on_fake_control_changed() -> void:
 
 func _on_source_mode_selected() -> void:
 	_switch_input_source(_get_option_value(_source_option))
+
+func _on_debug_tabs_toggle_toggled(pressed: bool) -> void:
+	_apply_debug_tabs_visibility(pressed)
+
+func _apply_debug_tabs_visibility(debug_tabs_visible: bool) -> void:
+	if _debug_tabs != null:
+		_debug_tabs.visible = debug_tabs_visible
+	if _debug_tabs_toggle_button != null:
+		_debug_tabs_toggle_button.text = "Hide debug tabs" if debug_tabs_visible else "Show debug tabs"
+	_update_status("Debug tabs %s" % ("shown" if debug_tabs_visible else "hidden"))
 
 func _on_controller_mode_changed(mode: String) -> void:
 	_preview_title_label.text = "3D World Preview (%s)" % mode

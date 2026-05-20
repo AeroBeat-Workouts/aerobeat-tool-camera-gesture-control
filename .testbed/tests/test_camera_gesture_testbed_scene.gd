@@ -25,8 +25,19 @@ func test_camera_gesture_testbed_scene_builds_harness_nodes() -> void:
 	assert_true(instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel") != null, "Harness should expose the right preview panel")
 	var media_inset := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel") as PanelContainer
 	assert_true(media_inset != null, "Harness should expose the preview inset panel")
-	assert_eq(media_inset.anchor_left, 1.0, "Preview inset should anchor to the right side so it stops covering the main preview as heavily")
-	assert_eq(media_inset.anchor_right, 1.0, "Preview inset should anchor to the right side so it stops covering the main preview as heavily")
+	assert_eq(media_inset.anchor_left, 1.0, "Preview inset should stay anchored to the bottom-right corner for live/replay comparison")
+	assert_eq(media_inset.anchor_right, 1.0, "Preview inset should stay anchored to the bottom-right corner for live/replay comparison")
+	assert_eq(media_inset.anchor_top, 1.0, "Preview inset should stay anchored to the bottom-right corner for live/replay comparison")
+	assert_eq(media_inset.anchor_bottom, 1.0, "Preview inset should stay anchored to the bottom-right corner for live/replay comparison")
+	assert_eq(media_inset.offset_right, -20.0, "Preview inset should keep a visible right margin from the preview edge")
+	assert_eq(media_inset.offset_bottom, -20.0, "Preview inset should keep a visible bottom margin from the preview edge")
+	assert_eq(media_inset.size.x, 416.0, "Preview inset should be substantially larger for replay/live dot comparison")
+	assert_eq(media_inset.size.y, 296.0, "Preview inset should be substantially larger for replay/live dot comparison")
+	var debug_toolbar := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/DebugToolbar") as HBoxContainer
+	assert_true(debug_toolbar != null, "Harness should expose a dedicated debug toolbar for collapsing the tab area")
+	var debug_tabs_toggle := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/DebugToolbar/DebugTabsToggleButton") as Button
+	assert_true(debug_tabs_toggle != null, "Harness should expose a clear hide/show control for the debug tabs")
+	assert_eq(debug_tabs_toggle.text, "Hide debug tabs", "Debug toolbar should default to the expanded diagnostic state")
 	var debug_tabs := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/DebugTabs") as TabContainer
 	assert_true(debug_tabs != null, "Harness should expose richer debug tabs")
 	assert_eq(debug_tabs.custom_minimum_size.y, 180.0, "Debug tabs should leave more vertical room for the world preview")
@@ -52,7 +63,7 @@ func test_camera_gesture_testbed_scene_builds_harness_nodes() -> void:
 	assert_eq(viewport.size, Vector2i(640, 360), "Harness viewport should follow the responsive preview frame so the world surface stays visible inside the rebuilt layout")
 	var camera_feed_host := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost") as Control
 	assert_true(camera_feed_host != null, "Harness should expose the media preview host")
-	assert_eq(camera_feed_host.custom_minimum_size.y, 132.0, "Media preview host should stay visible inside the inset without crowding the main world preview")
+	assert_eq(camera_feed_host.custom_minimum_size.y, 236.0, "Media preview host should be large enough to compare the feed against the tracking dots comfortably")
 	var camera_view := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost/MediaPipeCameraView") as TextureRect
 	assert_true(camera_view != null, "Harness should mount the MediaPipe camera view when the addon is present")
 	assert_eq(camera_view.expand_mode, TextureRect.EXPAND_IGNORE_SIZE, "Media preview should fill its host instead of collapsing to texture-native sizing")
@@ -104,6 +115,24 @@ func test_camera_gesture_testbed_exposes_split_source_modes_and_real_fixture_def
 	var fixture_sidecar_path_edit := instance.get("_fixture_sidecar_path_edit") as LineEdit
 	assert_true(fixture_video_path_edit.text.contains("head_rotate_left_repeat_04_take_01.mp4"), "Fixture default should point at a checked-in candidate video")
 	assert_true(fixture_sidecar_path_edit.text.contains("head_rotate_left_repeat_04_take_01.fixture.yaml"), "Fixture default should point at a checked-in candidate sidecar")
+
+func test_debug_tabs_toggle_hides_and_restores_diagnostics() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	var toggle := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/DebugToolbar/DebugTabsToggleButton") as Button
+	var debug_tabs := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/DebugTabs") as TabContainer
+	assert_true(toggle != null, "Harness should expose the debug-tabs toggle button")
+	assert_true(debug_tabs != null, "Harness should expose the debug tabs")
+	assert_true(debug_tabs.visible, "Debug tabs should start visible for diagnosis")
+
+	toggle.button_pressed = false
+	assert_false(debug_tabs.visible, "Turning the debug toggle off should collapse the debug tabs")
+	assert_eq(toggle.text, "Show debug tabs", "Collapsed debug state should advertise how to restore the diagnostics")
+
+	toggle.button_pressed = true
+	assert_true(debug_tabs.visible, "Turning the debug toggle back on should restore the debug tabs")
+	assert_eq(toggle.text, "Hide debug tabs", "Expanded debug state should advertise how to collapse the diagnostics")
 
 func test_server_started_signal_does_not_start_camera_stream_before_stabilization_finishes() -> void:
 	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")

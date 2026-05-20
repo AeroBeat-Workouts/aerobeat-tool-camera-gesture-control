@@ -496,6 +496,32 @@ Safe validation stayed repo-local only: `~/.local/bin/godot --headless --path .t
 
 ---
 
+---
+
+### Task 20: Make debug tabs hideable and enlarge the anchored media preview for diagnosis
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-6ux`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-03`  
+**Prompt:** Implement a narrow diagnostic-UI follow-up in the camera-gesture testbed. Make the bottom-right tab/debug-info area minimizable or hideable, and enlarge the media preview significantly so it is easy to compare the replay/live feed against the tracking dots while still keeping that preview anchored to the bottom-right with margin. Treat the dummy → live/replay freeze bug as explicitly out of scope for this slice; this pass is about visibility and inspectability, not runtime-state fixes. Keep the change scene-first where practical, validate safely without violating the no-headless-MediaPipe rule, update this plan with actual results, commit/push by default, and close the bead only when the UI diagnostic improvement is real.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/`
+
+**Files Created/Deleted/Modified:**
+- `/.testbed/scenes/camera_gesture_testbed.tscn`
+- `/.testbed/scripts/camera_gesture_testbed.gd`
+- `/.testbed/tests/test_camera_gesture_testbed_scene.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Landed the diagnostic-only UI follow-up with a scene-first bias and kept the dummy → live/replay freeze bug explicitly out of scope. The bottom-right debug area is now collapsible without losing the affordance to bring it back: `/.testbed/scenes/camera_gesture_testbed.tscn` adds a dedicated `DebugToolbar` row above `DebugTabs` with a persistent toggle button that starts in the expanded state (`Hide debug tabs`) and collapses the tab body to a compact header-only state (`Show debug tabs`) when pressed. `camera_gesture_testbed.gd` binds that scene-authored control, updates the button label on toggle, and leaves the rest of the diagnostic surfaces untouched.
+
+The media/tracking preview was also enlarged substantially while staying anchored to the bottom-right corner with explicit margin. The inset is now `416×296` instead of the previous small diagnostic stamp, uses a `20px` bottom/right corner margin, and raises the embedded feed host minimum height from `132` to `236`, making live/replay footage much easier to compare directly against the tracking dots. To make the enlarged diagnostic surface self-explanatory during manual use, the media title, placeholder copy, and inset status label are now visible by default. Safe repo-local validation stayed within Derrick’s rules: `~/.local/bin/godot --headless --path .testbed --check-only --script scripts/camera_gesture_testbed.gd` passed, and `~/.local/bin/godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_camera_gesture_testbed_scene.gd -gexit` passed `8/8` after adding assertions for the larger anchored inset and the hide/show debug-tabs behavior.
+
+---
+
 ## Final Results
 
 **Status:** ⚠️ Partial
