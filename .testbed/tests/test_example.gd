@@ -33,7 +33,29 @@ func test_addons_manifest_includes_testbed_only_mediapipe_path() -> void:
 	var manifest_text := _read_repo_file(ADDONS_MANIFEST_PATH)
 	assert_true(manifest_text.contains('"aerobeat-input-core"'), "addons manifest should mount input-core for the hidden proving path")
 	assert_true(manifest_text.contains('"aerobeat-input-mediapipe-python"'), "addons manifest should mount mediapipe python only for the hidden proving path")
+	assert_true(manifest_text.contains('"aerobeat-tool-headless-manager"'), "addons manifest should mount the headless-manager autoload dependency for approved headless runs")
 	assert_true(manifest_text.contains('"gut"'), "addons manifest should keep GUT for repo-local validation")
+
+func test_project_autoloads_headless_manager_with_truthful_contract() -> void:
+	var config := ConfigFile.new()
+	var error := config.load(ProjectSettings.globalize_path("res://project.godot"))
+	assert_eq(error, OK, "project.godot should parse cleanly")
+	assert_eq(
+		config.get_value("autoload", "AeroHeadlessManager", ""),
+		"*res://addons/aerobeat-tool-headless-manager/src/AeroHeadlessManager.gd",
+		"Testbed should autoload AeroHeadlessManager from the mounted addon path"
+	)
+	var manager_script_path := ProjectSettings.globalize_path("res://addons/aerobeat-tool-headless-manager/src/AeroHeadlessManager.gd")
+	assert_true(FileAccess.file_exists(manager_script_path), "Headless-manager script should exist after addon restore")
+	var manager_script_text := FileAccess.get_file_as_string(manager_script_path)
+	assert_true(
+		manager_script_text.contains('DisplayServer.get_name() == "headless"'),
+		"Headless-manager contract should stay truthfully headless-only"
+	)
+	assert_true(
+		manager_script_text.contains("OS.is_debug_build()"),
+		"Headless-manager contract should stay limited to debug runtimes"
+	)
 
 func test_default_yaml_profile_exists() -> void:
 	var default_profile_path := ProjectSettings.globalize_path("res://%s" % DEFAULT_PROFILE_PATH)

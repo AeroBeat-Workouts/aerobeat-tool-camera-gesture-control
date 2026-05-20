@@ -11,6 +11,10 @@ run/main_scene="res://scenes/camera_gesture_testbed.tscn"
 window/size/viewport_width=1920
 window/size/viewport_height=1080
 
+[autoload]
+
+AeroHeadlessManager="*res://addons/aerobeat-tool-headless-manager/src/AeroHeadlessManager.gd"
+
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/gut/plugin.cfg")
