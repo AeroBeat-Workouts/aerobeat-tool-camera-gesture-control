@@ -16,21 +16,21 @@ const MEDIAPIPE_CAMERA_VIEW_PATH := "res://addons/aerobeat-input-mediapipe-pytho
 const MEDIAPIPE_AUTOSTART_MANAGER_PATH := "res://addons/aerobeat-input-mediapipe-python/src/autostart_manager.gd"
 const PROVIDER_SESSION_REGISTRY_PATH := "res://addons/aerobeat-input-core/src/runtime/provider_session_registry.gd"
 const DEFAULT_MEDIAPIPE_STREAM_URL := "http://127.0.0.1:4243/camera"
-const DEFAULT_TESTBED_VIEWPORT_SIZE := Vector2i(1920, 1080)
-const PREVIEW_STACK_MIN_SIZE := Vector2(960.0, 540.0)
-const LEFT_PANEL_SPLIT_OFFSET := 440
-const LEFT_PANEL_MIN_WIDTH := 420
-const MEDIA_INSET_WIDTH := 336.0
-const MEDIA_INSET_HEIGHT := 214.0
-const CAMERA_FEED_MIN_HEIGHT := 158.0
-const DEBUG_TABS_MIN_HEIGHT := 220.0
-const LEFT_PANEL_FONT_SIZE := 17
-const LEFT_PANEL_INPUT_FONT_SIZE := 16
-const STATUS_LABEL_FONT_SIZE := 18
-const SECTION_TITLE_FONT_SIZE := 20
-const TITLE_FONT_SIZE := 30
-const PREVIEW_TITLE_FONT_SIZE := 24
-const MEDIA_TITLE_FONT_SIZE := 20
+const DEFAULT_TESTBED_VIEWPORT_SIZE := Vector2i(960, 540)
+const PREVIEW_STACK_MIN_SIZE := Vector2(640.0, 360.0)
+const LEFT_PANEL_SPLIT_OFFSET := 360
+const LEFT_PANEL_MIN_WIDTH := 340
+const MEDIA_INSET_WIDTH := 280.0
+const MEDIA_INSET_HEIGHT := 184.0
+const CAMERA_FEED_MIN_HEIGHT := 132.0
+const DEBUG_TABS_MIN_HEIGHT := 180.0
+const LEFT_PANEL_FONT_SIZE := 15
+const LEFT_PANEL_INPUT_FONT_SIZE := 14
+const STATUS_LABEL_FONT_SIZE := 16
+const SECTION_TITLE_FONT_SIZE := 18
+const TITLE_FONT_SIZE := 26
+const PREVIEW_TITLE_FONT_SIZE := 22
+const MEDIA_TITLE_FONT_SIZE := 18
 const MEDIAPIPE_SESSION_OWNER_ID := "aerobeat-tool-camera-gesture-control:testbed"
 const MEDIAPIPE_SESSION_CONSUMER_ID := "aerobeat-tool-camera-gesture-control:testbed_consumer"
 const MEDIAPIPE_SESSION_KEY := "mediapipe_python/camera_gesture_testbed"
@@ -95,6 +95,12 @@ var _latest_pose_landmarks: Array = []
 var _recent_trace_frames: Array = []
 var _animated_world_markers: Array = []
 var _preview_title_label: Label
+var _left_panel: VBoxContainer
+var _profile_section_content: VBoxContainer
+var _source_section_content: VBoxContainer
+var _trace_section_content: VBoxContainer
+var _tuning_section_content: VBoxContainer
+var _fake_section_content: VBoxContainer
 
 func _ready() -> void:
 	name = "CameraGestureControlTestbed"
@@ -108,7 +114,8 @@ func _ready() -> void:
 	_controller.profile_loaded.connect(_on_profile_loaded)
 	_controller.profile_saved.connect(_on_profile_saved)
 
-	_build_layout()
+	_bind_layout_nodes()
+	_populate_layout_controls()
 	_build_world()
 	_setup_sources()
 	_controller.attach_camera(_camera)
@@ -145,131 +152,164 @@ func _notification(what: int) -> void:
 		_mediapipe_camera_view.stop_stream()
 	_teardown_mediapipe_runtime()
 
-func _build_layout() -> void:
-	var root := HSplitContainer.new()
-	root.name = "RootSplit"
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.split_offset = LEFT_PANEL_SPLIT_OFFSET
-	add_child(root)
+func _bind_layout_nodes() -> void:
+	var root_split := get_node("RootMargin/RootSplit") as HSplitContainer
+	root_split.split_offset = LEFT_PANEL_SPLIT_OFFSET
 
-	var left_scroll := ScrollContainer.new()
-	left_scroll.name = "LeftPanelScroll"
-	left_scroll.size_flags_horizontal = Control.SIZE_FILL
-	left_scroll.custom_minimum_size = Vector2(LEFT_PANEL_MIN_WIDTH, 0)
-	root.add_child(left_scroll)
+	var left_scroll := get_node("RootMargin/RootSplit/LeftPanelScroll") as ScrollContainer
+	left_scroll.custom_minimum_size = Vector2(LEFT_PANEL_MIN_WIDTH, 0.0)
 
-	var left_panel := VBoxContainer.new()
-	left_panel.name = "LeftPanel"
-	left_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_panel.custom_minimum_size = Vector2(LEFT_PANEL_MIN_WIDTH, 820)
-	left_panel.add_theme_constant_override("separation", 12)
-	left_scroll.add_child(left_panel)
+	_left_panel = get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel") as VBoxContainer
+	_left_panel.custom_minimum_size = Vector2(LEFT_PANEL_MIN_WIDTH, 0.0)
 
-	var title := Label.new()
-	title.text = "Camera Gesture Control Testbed"
+	var title := get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn/TitleLabel") as Label
 	title.add_theme_font_size_override("font_size", TITLE_FONT_SIZE)
-	left_panel.add_child(title)
 
-	var subtitle := Label.new()
-	subtitle.text = "1920×1080 testbed with YAML-first profile controls, real MediaPipe live/replay hookup, 3D parallax preview, and trace-first fixture capture surfaces."
-	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var subtitle := get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn/SubtitleLabel") as Label
 	subtitle.add_theme_font_size_override("font_size", LEFT_PANEL_FONT_SIZE)
-	left_panel.add_child(subtitle)
 
-	_status_label = Label.new()
-	_status_label.text = "Status: booting"
+	_status_label = get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn/StatusLabel") as Label
 	_status_label.add_theme_font_size_override("font_size", STATUS_LABEL_FONT_SIZE)
-	left_panel.add_child(_status_label)
 
-	_source_label = Label.new()
-	_source_label.text = "Input source: booting"
+	_source_label = get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn/SourceLabel") as Label
 	_source_label.add_theme_font_size_override("font_size", STATUS_LABEL_FONT_SIZE)
-	left_panel.add_child(_source_label)
 
-	_tracking_label = Label.new()
-	_tracking_label.text = "Tracking: booting"
+	_tracking_label = get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn/TrackingLabel") as Label
 	_tracking_label.add_theme_font_size_override("font_size", STATUS_LABEL_FONT_SIZE)
-	left_panel.add_child(_tracking_label)
 
-	_profile_identity_label = Label.new()
-	_profile_identity_label.text = "Profile: booting"
-	_profile_identity_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_profile_identity_label = get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn/ProfileIdentityLabel") as Label
 	_profile_identity_label.add_theme_font_size_override("font_size", STATUS_LABEL_FONT_SIZE)
-	left_panel.add_child(_profile_identity_label)
 
-	var profile_panel := _add_section_panel(left_panel, "Profile workflow (YAML-first)")
+	_profile_section_content = get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/ProfileSection/ProfileMargin/ProfileSectionContent") as VBoxContainer
+	_source_section_content = get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/SourceSection/SourceMargin/SourceSectionContent") as VBoxContainer
+	_trace_section_content = get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TraceSection/TraceMargin/TraceSectionContent") as VBoxContainer
+	_tuning_section_content = get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TuningSection/TuningMargin/TuningSectionContent") as VBoxContainer
+	_fake_section_content = get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/FakeSection/FakeMargin/FakeSectionContent") as VBoxContainer
+
+	var preview_stack := get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack") as Control
+	preview_stack.custom_minimum_size = PREVIEW_STACK_MIN_SIZE
+
+	_subviewport = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/WorldPreviewViewportContainer/WorldPreviewViewport") as SubViewport
+
+	_preview_title_label = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/OverlayTop/PreviewTitleLabel") as Label
+	_preview_title_label.add_theme_font_size_override("font_size", PREVIEW_TITLE_FONT_SIZE)
+	_preview_stats_label = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/OverlayTop/PreviewStatsLabel") as RichTextLabel
+
+	var media_panel := get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel") as PanelContainer
+	media_panel.offset_left = -MEDIA_INSET_WIDTH - 16.0
+	media_panel.offset_top = -MEDIA_INSET_HEIGHT - 16.0
+	media_panel.offset_right = -16.0
+	media_panel.offset_bottom = -16.0
+
+	var media_title := get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/MediaTitleLabel") as Label
+	media_title.add_theme_font_size_override("font_size", MEDIA_TITLE_FONT_SIZE)
+
+	_camera_feed_host = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost") as Control
+	_camera_feed_host.custom_minimum_size = Vector2(0.0, CAMERA_FEED_MIN_HEIGHT)
+	_media_inset_placeholder = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost/MediaInsetPlaceholder") as ColorRect
+	_media_placeholder_label = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost/MediaInsetPlaceholder/MediaPlaceholderLabel") as Label
+	_tracking_overlay = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost/TrackingInsetOverlay") as CameraGestureTrackingInsetOverlay
+	_media_inset_status_label = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/MediaInsetStatusLabel") as Label
+
+	var debug_tabs := get_node("RootMargin/RootSplit/RightColumn/DebugTabs") as TabContainer
+	debug_tabs.custom_minimum_size = Vector2(0.0, DEBUG_TABS_MIN_HEIGHT)
+	_runtime_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Runtime/RuntimeDebugLabel") as RichTextLabel
+	_trace_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Trace/TraceDebugLabel") as RichTextLabel
+	_fixture_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Fixture/FixtureDebugLabel") as RichTextLabel
+	_provider_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Provider/ProviderDebugLabel") as RichTextLabel
+
+func _populate_layout_controls() -> void:
+	_profile_section_content.get_node("SectionTitleLabel").add_theme_font_size_override("font_size", SECTION_TITLE_FONT_SIZE)
+	_source_section_content.get_node("SectionTitleLabel").add_theme_font_size_override("font_size", SECTION_TITLE_FONT_SIZE)
+	_trace_section_content.get_node("SectionTitleLabel").add_theme_font_size_override("font_size", SECTION_TITLE_FONT_SIZE)
+	_tuning_section_content.get_node("SectionTitleLabel").add_theme_font_size_override("font_size", SECTION_TITLE_FONT_SIZE)
+	_fake_section_content.get_node("SectionTitleLabel").add_theme_font_size_override("font_size", SECTION_TITLE_FONT_SIZE)
+
 	var default_profile_hint := Label.new()
 	default_profile_hint.name = "DefaultProfileHint"
 	default_profile_hint.text = "Checked-in default: %s" % _default_profile_absolute_path()
 	default_profile_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	profile_panel.add_child(default_profile_hint)
+	_profile_section_content.add_child(default_profile_hint)
 
 	_profile_path_edit = LineEdit.new()
 	_profile_path_edit.name = "ProfilePathEdit"
 	_profile_path_edit.placeholder_text = "Path used for load/reload/export"
 	_profile_path_edit.text = TESTBED_PROFILE_EXPORT_PATH
-	profile_panel.add_child(_profile_path_edit)
+	_profile_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_profile_section_content.add_child(_profile_path_edit)
 
-	var profile_buttons_top := HBoxContainer.new()
+	var profile_buttons_top := HFlowContainer.new()
 	profile_buttons_top.name = "ProfileButtonsTop"
-	profile_panel.add_child(profile_buttons_top)
+	profile_buttons_top.add_theme_constant_override("h_separation", 8)
+	profile_buttons_top.add_theme_constant_override("v_separation", 8)
+	_profile_section_content.add_child(profile_buttons_top)
 	profile_buttons_top.add_child(_make_button("Load default YAML", _load_default_profile))
 	profile_buttons_top.add_child(_make_button("Load path", _load_profile_from_path))
 	profile_buttons_top.add_child(_make_button("Reload path", _reload_profile_from_path))
 
-	var profile_buttons_bottom := HBoxContainer.new()
+	var profile_buttons_bottom := HFlowContainer.new()
 	profile_buttons_bottom.name = "ProfileButtonsBottom"
-	profile_panel.add_child(profile_buttons_bottom)
+	profile_buttons_bottom.add_theme_constant_override("h_separation", 8)
+	profile_buttons_bottom.add_theme_constant_override("v_separation", 8)
+	_profile_section_content.add_child(profile_buttons_bottom)
 	profile_buttons_bottom.add_child(_make_button("Export YAML snapshot", _export_profile_to_path))
 	profile_buttons_bottom.add_child(_make_button("Reset runtime defaults", _reset_profile))
 
-	var source_panel := _add_section_panel(left_panel, "Source + fixture runtime")
-	_source_option = _add_option(source_panel, "Input source", SOURCE_OPTIONS, _on_source_mode_selected)
+	_source_option = _add_option(_source_section_content, "Input source", SOURCE_OPTIONS, _on_source_mode_selected)
 	_fixture_key_edit = LineEdit.new()
 	_fixture_key_edit.name = "FixtureKeyEdit"
 	_fixture_key_edit.placeholder_text = "Fixture key / intent family"
 	_fixture_key_edit.text = "camera_gesture/head_pose/head_rotate_left_repeat_04_take_01"
-	source_panel.add_child(_labeled_control("Fixture key", _fixture_key_edit))
+	_fixture_key_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_source_section_content.add_child(_labeled_control("Fixture key", _fixture_key_edit))
 
 	_fixture_video_path_edit = LineEdit.new()
 	_fixture_video_path_edit.name = "FixtureVideoPathEdit"
 	_fixture_video_path_edit.placeholder_text = "Fixture video path used for replay mode"
 	_fixture_video_path_edit.text = DEFAULT_FIXTURE_VIDEO_PATH
-	source_panel.add_child(_labeled_control("Fixture video path", _fixture_video_path_edit))
+	_fixture_video_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_source_section_content.add_child(_labeled_control("Fixture video path", _fixture_video_path_edit))
 
 	_fixture_sidecar_path_edit = LineEdit.new()
 	_fixture_sidecar_path_edit.name = "FixtureSidecarPathEdit"
 	_fixture_sidecar_path_edit.placeholder_text = "Fixture sidecar YAML path"
 	_fixture_sidecar_path_edit.text = DEFAULT_FIXTURE_SIDECAR_PATH
-	source_panel.add_child(_labeled_control("Fixture sidecar path", _fixture_sidecar_path_edit))
+	_fixture_sidecar_path_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_source_section_content.add_child(_labeled_control("Fixture sidecar path", _fixture_sidecar_path_edit))
 
-	var source_buttons := HBoxContainer.new()
+	var source_buttons := HFlowContainer.new()
 	source_buttons.name = "SourceButtons"
-	source_panel.add_child(source_buttons)
+	source_buttons.add_theme_constant_override("h_separation", 8)
+	source_buttons.add_theme_constant_override("v_separation", 8)
+	_source_section_content.add_child(source_buttons)
 	source_buttons.add_child(_make_button("Apply source / restart runtime", _apply_source_runtime_selection))
 	source_buttons.add_child(_make_button("Refresh fixture hints", _refresh_fixture_runtime_from_ui))
 
 	var fixture_note := Label.new()
 	fixture_note.text = "Replay mode now launches MediaPipe through AutoStartManager with the selected fixture video, sidecar hints can steer the runtime sample source, and trace export stays structured for later oracle work."
 	fixture_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	source_panel.add_child(fixture_note)
+	_source_section_content.add_child(fixture_note)
 
-	var trace_panel := _add_section_panel(left_panel, "Trace capture scaffolding")
 	_trace_export_root_edit = LineEdit.new()
 	_trace_export_root_edit.name = "TraceExportRootEdit"
 	_trace_export_root_edit.placeholder_text = "Trace export root"
 	_trace_export_root_edit.text = TRACE_EXPORT_ROOT
-	trace_panel.add_child(_labeled_control("Trace export root", _trace_export_root_edit))
+	_trace_export_root_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_trace_section_content.add_child(_labeled_control("Trace export root", _trace_export_root_edit))
 
-	var trace_buttons := HBoxContainer.new()
+	var trace_buttons := HFlowContainer.new()
 	trace_buttons.name = "TraceButtons"
-	trace_panel.add_child(trace_buttons)
+	trace_buttons.add_theme_constant_override("h_separation", 8)
+	trace_buttons.add_theme_constant_override("v_separation", 8)
+	_trace_section_content.add_child(trace_buttons)
 	trace_buttons.add_child(_make_button("Start capture", _start_trace_capture))
 	trace_buttons.add_child(_make_button("Stop + export", _stop_and_export_trace_capture))
 
-	var trace_buttons_bottom := HBoxContainer.new()
+	var trace_buttons_bottom := HFlowContainer.new()
 	trace_buttons_bottom.name = "TraceButtonsBottom"
-	trace_panel.add_child(trace_buttons_bottom)
+	trace_buttons_bottom.add_theme_constant_override("h_separation", 8)
+	trace_buttons_bottom.add_theme_constant_override("v_separation", 8)
+	_trace_section_content.add_child(trace_buttons_bottom)
 	trace_buttons_bottom.add_child(_make_button("Export snapshot now", _export_trace_snapshot))
 	trace_buttons_bottom.add_child(_make_button("Clear trace buffer", _clear_recent_trace))
 
@@ -277,167 +317,37 @@ func _build_layout() -> void:
 	_trace_status_label.name = "TraceStatusLabel"
 	_trace_status_label.text = "Trace: idle"
 	_trace_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	trace_panel.add_child(_trace_status_label)
+	_trace_section_content.add_child(_trace_status_label)
 
-	var tuning_panel := _add_section_panel(left_panel, "Controller tuning")
-	_field_refs["enabled"] = _add_toggle(tuning_panel, "Enabled", true, _on_profile_field_changed)
-	_field_refs["mode"] = _add_option(tuning_panel, "Control mode", CONTROL_MODE_OPTIONS, _on_profile_field_changed)
-	_field_refs["sample_source"] = _add_option(tuning_panel, "Sample source", SAMPLE_SOURCE_OPTIONS, _on_profile_field_changed)
-	_field_refs["debug_trace_level"] = _add_option(tuning_panel, "Debug trace level", TRACE_LEVEL_OPTIONS, _on_profile_field_changed)
-	_field_refs["invert_x"] = _add_toggle(tuning_panel, "Invert X", false, _on_profile_field_changed)
-	_field_refs["invert_y"] = _add_toggle(tuning_panel, "Invert Y", false, _on_profile_field_changed)
-	_field_refs["freeze_on_tracking_loss"] = _add_toggle(tuning_panel, "Freeze on tracking loss", true, _on_profile_field_changed)
-	_field_refs["look_sensitivity_x"] = _add_slider(tuning_panel, "Look sensitivity X", 0.1, 3.0, 0.05, 1.0, _on_profile_field_changed)
-	_field_refs["look_sensitivity_y"] = _add_slider(tuning_panel, "Look sensitivity Y", 0.1, 3.0, 0.05, 1.0, _on_profile_field_changed)
-	_field_refs["translation_sensitivity_x"] = _add_slider(tuning_panel, "Translation sensitivity X", 0.1, 3.0, 0.05, 1.0, _on_profile_field_changed)
-	_field_refs["translation_sensitivity_y"] = _add_slider(tuning_panel, "Translation sensitivity Y", 0.1, 3.0, 0.05, 0.6, _on_profile_field_changed)
-	_field_refs["translation_sensitivity_z"] = _add_slider(tuning_panel, "Translation sensitivity Z", 0.1, 3.0, 0.05, 0.4, _on_profile_field_changed)
-	_field_refs["max_yaw_degrees"] = _add_slider(tuning_panel, "Max yaw degrees", 0.0, 60.0, 1.0, 20.0, _on_profile_field_changed)
-	_field_refs["max_pitch_degrees"] = _add_slider(tuning_panel, "Max pitch degrees", 0.0, 45.0, 1.0, 12.0, _on_profile_field_changed)
-	_field_refs["max_roll_degrees"] = _add_slider(tuning_panel, "Max roll degrees", 0.0, 30.0, 1.0, 4.0, _on_profile_field_changed)
-	_field_refs["max_translation_x"] = _add_slider(tuning_panel, "Max translation X", 0.0, 2.0, 0.01, 0.6, _on_profile_field_changed)
-	_field_refs["max_translation_y"] = _add_slider(tuning_panel, "Max translation Y", 0.0, 2.0, 0.01, 0.35, _on_profile_field_changed)
-	_field_refs["max_translation_z"] = _add_slider(tuning_panel, "Max translation Z", 0.0, 2.0, 0.01, 0.45, _on_profile_field_changed)
-	_field_refs["smoothing"] = _add_slider(tuning_panel, "Smoothing", 0.0, 1.0, 0.01, 0.2, _on_profile_field_changed)
-	_field_refs["deadzone"] = _add_slider(tuning_panel, "Deadzone", 0.0, 0.5, 0.01, 0.03, _on_profile_field_changed)
-	_field_refs["recenter_speed"] = _add_slider(tuning_panel, "Recenter speed", 0.0, 10.0, 0.1, 1.8, _on_profile_field_changed)
-	_field_refs["tracking_confidence_threshold"] = _add_slider(tuning_panel, "Tracking confidence threshold", 0.0, 1.0, 0.01, 0.45, _on_profile_field_changed)
+	_field_refs["enabled"] = _add_toggle(_tuning_section_content, "Enabled", true, _on_profile_field_changed)
+	_field_refs["mode"] = _add_option(_tuning_section_content, "Control mode", CONTROL_MODE_OPTIONS, _on_profile_field_changed)
+	_field_refs["sample_source"] = _add_option(_tuning_section_content, "Sample source", SAMPLE_SOURCE_OPTIONS, _on_profile_field_changed)
+	_field_refs["debug_trace_level"] = _add_option(_tuning_section_content, "Debug trace level", TRACE_LEVEL_OPTIONS, _on_profile_field_changed)
+	_field_refs["invert_x"] = _add_toggle(_tuning_section_content, "Invert X", false, _on_profile_field_changed)
+	_field_refs["invert_y"] = _add_toggle(_tuning_section_content, "Invert Y", false, _on_profile_field_changed)
+	_field_refs["freeze_on_tracking_loss"] = _add_toggle(_tuning_section_content, "Freeze on tracking loss", true, _on_profile_field_changed)
+	_field_refs["look_sensitivity_x"] = _add_slider(_tuning_section_content, "Look sensitivity X", 0.1, 3.0, 0.05, 1.0, _on_profile_field_changed)
+	_field_refs["look_sensitivity_y"] = _add_slider(_tuning_section_content, "Look sensitivity Y", 0.1, 3.0, 0.05, 1.0, _on_profile_field_changed)
+	_field_refs["translation_sensitivity_x"] = _add_slider(_tuning_section_content, "Translation sensitivity X", 0.1, 3.0, 0.05, 1.0, _on_profile_field_changed)
+	_field_refs["translation_sensitivity_y"] = _add_slider(_tuning_section_content, "Translation sensitivity Y", 0.1, 3.0, 0.05, 0.6, _on_profile_field_changed)
+	_field_refs["translation_sensitivity_z"] = _add_slider(_tuning_section_content, "Translation sensitivity Z", 0.1, 3.0, 0.05, 0.4, _on_profile_field_changed)
+	_field_refs["max_yaw_degrees"] = _add_slider(_tuning_section_content, "Max yaw degrees", 0.0, 60.0, 1.0, 20.0, _on_profile_field_changed)
+	_field_refs["max_pitch_degrees"] = _add_slider(_tuning_section_content, "Max pitch degrees", 0.0, 45.0, 1.0, 12.0, _on_profile_field_changed)
+	_field_refs["max_roll_degrees"] = _add_slider(_tuning_section_content, "Max roll degrees", 0.0, 30.0, 1.0, 4.0, _on_profile_field_changed)
+	_field_refs["max_translation_x"] = _add_slider(_tuning_section_content, "Max translation X", 0.0, 2.0, 0.01, 0.6, _on_profile_field_changed)
+	_field_refs["max_translation_y"] = _add_slider(_tuning_section_content, "Max translation Y", 0.0, 2.0, 0.01, 0.35, _on_profile_field_changed)
+	_field_refs["max_translation_z"] = _add_slider(_tuning_section_content, "Max translation Z", 0.0, 2.0, 0.01, 0.45, _on_profile_field_changed)
+	_field_refs["smoothing"] = _add_slider(_tuning_section_content, "Smoothing", 0.0, 1.0, 0.01, 0.2, _on_profile_field_changed)
+	_field_refs["deadzone"] = _add_slider(_tuning_section_content, "Deadzone", 0.0, 0.5, 0.01, 0.03, _on_profile_field_changed)
+	_field_refs["recenter_speed"] = _add_slider(_tuning_section_content, "Recenter speed", 0.0, 10.0, 0.1, 1.8, _on_profile_field_changed)
+	_field_refs["tracking_confidence_threshold"] = _add_slider(_tuning_section_content, "Tracking confidence threshold", 0.0, 1.0, 0.01, 0.45, _on_profile_field_changed)
 
-	var fake_panel := _add_section_panel(left_panel, "Fake input controls")
-	_fake_controls["tracking"] = _add_toggle(fake_panel, "Fake tracking active", true, _on_fake_control_changed)
-	_fake_controls["confidence"] = _add_slider(fake_panel, "Fake confidence", 0.0, 1.0, 0.01, 1.0, _on_fake_control_changed)
-	_fake_controls["animate"] = _add_toggle(fake_panel, "Animate fake input", true, _on_fake_control_changed)
-	_fake_controls["animation_speed"] = _add_slider(fake_panel, "Fake animation speed", 0.1, 4.0, 0.1, 1.0, _on_fake_control_changed)
+	_fake_controls["tracking"] = _add_toggle(_fake_section_content, "Fake tracking active", true, _on_fake_control_changed)
+	_fake_controls["confidence"] = _add_slider(_fake_section_content, "Fake confidence", 0.0, 1.0, 0.01, 1.0, _on_fake_control_changed)
+	_fake_controls["animate"] = _add_toggle(_fake_section_content, "Animate fake input", true, _on_fake_control_changed)
+	_fake_controls["animation_speed"] = _add_slider(_fake_section_content, "Fake animation speed", 0.1, 4.0, 0.1, 1.0, _on_fake_control_changed)
 
-	_apply_left_panel_readability_theme(left_panel)
-
-	var right_column := VBoxContainer.new()
-	right_column.name = "RightColumn"
-	right_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_column.add_theme_constant_override("separation", 10)
-	root.add_child(right_column)
-
-	var preview_panel := PanelContainer.new()
-	preview_panel.name = "PreviewPanel"
-	preview_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	preview_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_column.add_child(preview_panel)
-
-	var preview_margin := MarginContainer.new()
-	preview_margin.name = "PreviewMargin"
-	preview_margin.add_theme_constant_override("margin_left", 10)
-	preview_margin.add_theme_constant_override("margin_top", 10)
-	preview_margin.add_theme_constant_override("margin_right", 10)
-	preview_margin.add_theme_constant_override("margin_bottom", 10)
-	preview_panel.add_child(preview_margin)
-
-	var preview_stack := Control.new()
-	preview_stack.name = "PreviewStack"
-	preview_stack.custom_minimum_size = PREVIEW_STACK_MIN_SIZE
-	preview_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	preview_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	preview_margin.add_child(preview_stack)
-
-	var viewport_container := SubViewportContainer.new()
-	viewport_container.name = "WorldPreviewViewportContainer"
-	viewport_container.set_anchors_preset(Control.PRESET_FULL_RECT)
-	viewport_container.stretch = true
-	preview_stack.add_child(viewport_container)
-
-	_subviewport = SubViewport.new()
-	_subviewport.name = "WorldPreviewViewport"
-	_subviewport.size = DEFAULT_TESTBED_VIEWPORT_SIZE
-	_subviewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	viewport_container.add_child(_subviewport)
-
-	var overlay_top := VBoxContainer.new()
-	overlay_top.name = "OverlayTop"
-	overlay_top.offset_left = 16.0
-	overlay_top.offset_top = 16.0
-	overlay_top.add_theme_constant_override("separation", 4)
-	preview_stack.add_child(overlay_top)
-
-	_preview_title_label = Label.new()
-	_preview_title_label.name = "PreviewTitleLabel"
-	_preview_title_label.text = "3D World Preview"
-	_preview_title_label.add_theme_font_size_override("font_size", PREVIEW_TITLE_FONT_SIZE)
-	overlay_top.add_child(_preview_title_label)
-
-	_preview_stats_label = RichTextLabel.new()
-	_preview_stats_label.name = "PreviewStatsLabel"
-	_preview_stats_label.custom_minimum_size = Vector2(340, 70)
-	_preview_stats_label.fit_content = true
-	_preview_stats_label.scroll_active = false
-	overlay_top.add_child(_preview_stats_label)
-
-	var media_panel := PanelContainer.new()
-	media_panel.name = "MediaInsetPanel"
-	media_panel.anchor_left = 1.0
-	media_panel.anchor_top = 1.0
-	media_panel.anchor_right = 1.0
-	media_panel.anchor_bottom = 1.0
-	media_panel.offset_left = -MEDIA_INSET_WIDTH - 16.0
-	media_panel.offset_top = -MEDIA_INSET_HEIGHT - 16.0
-	media_panel.offset_right = -16.0
-	media_panel.offset_bottom = -16.0
-	preview_stack.add_child(media_panel)
-
-	var media_column := VBoxContainer.new()
-	media_column.name = "MediaInsetColumn"
-	media_column.add_theme_constant_override("separation", 6)
-	media_panel.add_child(media_column)
-
-	var media_title := Label.new()
-	media_title.text = "MediaPipe / Tracking Inset"
-	media_title.add_theme_font_size_override("font_size", MEDIA_TITLE_FONT_SIZE)
-	media_column.add_child(media_title)
-
-	_camera_feed_host = Control.new()
-	_camera_feed_host.name = "CameraFeedHost"
-	_camera_feed_host.custom_minimum_size = Vector2(0, CAMERA_FEED_MIN_HEIGHT)
-	_camera_feed_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_camera_feed_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	media_column.add_child(_camera_feed_host)
-
-	_media_inset_placeholder = ColorRect.new()
-	_media_inset_placeholder.name = "MediaInsetPlaceholder"
-	_media_inset_placeholder.color = Color(0.05, 0.07, 0.10, 0.92)
-	_media_inset_placeholder.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_camera_feed_host.add_child(_media_inset_placeholder)
-
-	_media_placeholder_label = Label.new()
-	_media_placeholder_label.name = "MediaPlaceholderLabel"
-	_media_placeholder_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_media_placeholder_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_media_placeholder_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_media_placeholder_label.text = "Awaiting source preview"
-	_media_placeholder_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_media_inset_placeholder.add_child(_media_placeholder_label)
-
-	_tracking_overlay = TRACKING_INSET_OVERLAY_SCRIPT.new()
-	_tracking_overlay.name = "TrackingInsetOverlay"
-	_tracking_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_tracking_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_camera_feed_host.add_child(_tracking_overlay)
-
-	_media_inset_status_label = Label.new()
-	_media_inset_status_label.name = "MediaInsetStatusLabel"
-	_media_inset_status_label.text = "Inset: booting"
-	_media_inset_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	media_column.add_child(_media_inset_status_label)
-
-	var debug_tabs := TabContainer.new()
-	debug_tabs.name = "DebugTabs"
-	debug_tabs.custom_minimum_size = Vector2(0, DEBUG_TABS_MIN_HEIGHT)
-	debug_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	debug_tabs.size_flags_vertical = Control.SIZE_FILL
-	right_column.add_child(debug_tabs)
-
-	_runtime_debug_label = _add_debug_tab(debug_tabs, "Runtime")
-	_trace_debug_label = _add_debug_tab(debug_tabs, "Trace")
-	_fixture_debug_label = _add_debug_tab(debug_tabs, "Fixture")
-	_provider_debug_label = _add_debug_tab(debug_tabs, "Provider")
+	_apply_left_panel_readability_theme(_left_panel)
 
 func _build_world() -> void:
 	_world_root = Node3D.new()

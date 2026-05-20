@@ -414,6 +414,32 @@ I also narrowed the remaining `camera_view.gd:205 ... Failed to connect, status:
 
 ---
 
+### Task 17: Rework the testbed UI structure for responsive 16:9 use and reduce font pressure slightly
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-msg`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-01`, `REF-02`, `REF-03`  
+**Prompt:** Incorporate Derrick’s latest manual feedback into the camera-gesture testbed. Slightly decrease font size across the panels, rebuild the UI to fit a 16:9 test surface responsively using proper anchors/containers instead of letting major regions fall off-screen, and prefer defining the UI as subnodes under `CameraGestureTestbed` in the scene hierarchy rather than spawning the whole interface from code if that is the cleaner/safer route. Preserve important surfaces on-screen at once, especially the world preview and the tracking/minimap replay preview texture. Continue treating QA/audit as Derrick-handled for this session, validate safely without violating the no-headless-MediaPipe rule, update this plan with actual results, commit/push by default, and close the bead only when the source-side UI rework is real.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/`
+
+**Files Created/Deleted/Modified:**
+- `/.testbed/scenes/camera_gesture_testbed.tscn`
+- `/.testbed/scripts/camera_gesture_testbed.gd`
+- `/.testbed/tests/test_camera_gesture_testbed_scene.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Reworked the harness UI around a scene-defined responsive scaffold instead of spawning the whole interface from code. `/.testbed/scenes/camera_gesture_testbed.tscn` now owns the major 16:9 layout structure under `CameraGestureTestbed`: a margin-wrapped root split, a scrollable left workflow column, a right preview column, a bottom-right tracking/media inset, and persistent debug tabs. `camera_gesture_testbed.gd` now binds/populates those scene subnodes instead of constructing the entire shell procedurally, which makes the anchors/containers explicit and safer to maintain.
+
+Font pressure was reduced slightly rather than increased: left-panel body text dropped to `15`, input text to `14`, status rows to `16`, section titles to `18`, the scene title to `26`, preview title to `22`, and media inset title to `18`. The responsive sizing was also rebalanced for a 16:9 test surface: left split `360`, left minimum width `340`, preview minimum `640×360`, media inset `280×184`, camera-feed minimum height `132`, and debug tabs minimum height `180`. That keeps the world preview and tracking/minimap replay preview texture on-screen together instead of letting the left rail and inset crowd them off the surface.
+
+Safe validation stayed within Derrick’s no-headless-MediaPipe rule: `~/.local/bin/godot --headless --path .testbed --check-only --script scripts/camera_gesture_testbed.gd` passed, and `~/.local/bin/godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_camera_gesture_testbed_scene.gd -gexit` passed `6/6` after updating the scene-layout assertions to the new responsive scaffold. Important truth boundary: this coder slice proves the source-side responsive UI rework and scene-structure migration are real, but Derrick still owns the final manual runtime truth-check for on-screen fit and live/replay behavior in the real editor.
+
+---
+
 ## Final Results
 
 **Status:** ⚠️ Partial

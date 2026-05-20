@@ -19,35 +19,35 @@ func test_camera_gesture_testbed_scene_builds_harness_nodes() -> void:
 	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
 	var instance := packed_scene.instantiate()
 	add_child_autofree(instance)
-	var root_split := instance.get_node_or_null("RootSplit") as HSplitContainer
+	var root_split := instance.get_node_or_null("RootMargin/RootSplit") as HSplitContainer
 	assert_true(root_split != null, "Harness should build a root split layout")
-	assert_eq(root_split.split_offset, 440, "Harness should keep the left panel readable without consuming the preview column")
-	assert_true(instance.get_node_or_null("RootSplit/RightColumn/PreviewPanel") != null, "Harness should expose the right preview panel")
-	var media_inset := instance.get_node_or_null("RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel") as PanelContainer
+	assert_eq(root_split.split_offset, 360, "Harness should keep the left panel readable without consuming the preview column")
+	assert_true(instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel") != null, "Harness should expose the right preview panel")
+	var media_inset := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel") as PanelContainer
 	assert_true(media_inset != null, "Harness should expose the preview inset panel")
 	assert_eq(media_inset.anchor_left, 1.0, "Preview inset should anchor to the right side so it stops covering the main preview as heavily")
 	assert_eq(media_inset.anchor_right, 1.0, "Preview inset should anchor to the right side so it stops covering the main preview as heavily")
-	var debug_tabs := instance.get_node_or_null("RootSplit/RightColumn/DebugTabs") as TabContainer
+	var debug_tabs := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/DebugTabs") as TabContainer
 	assert_true(debug_tabs != null, "Harness should expose richer debug tabs")
-	assert_eq(debug_tabs.custom_minimum_size.y, 220.0, "Debug tabs should leave more vertical room for the world preview")
-	var left_scroll := instance.get_node_or_null("RootSplit/LeftPanelScroll") as ScrollContainer
+	assert_eq(debug_tabs.custom_minimum_size.y, 180.0, "Debug tabs should leave more vertical room for the world preview")
+	var left_scroll := instance.get_node_or_null("RootMargin/RootSplit/LeftPanelScroll") as ScrollContainer
 	assert_true(left_scroll != null, "Harness should expose the left panel scroll container")
-	assert_eq(left_scroll.custom_minimum_size.x, 420.0, "Left panel minimum width should stay readable without forcing controls off-screen")
-	var left_panel := instance.get_node_or_null("RootSplit/LeftPanelScroll/LeftPanel") as VBoxContainer
+	assert_eq(left_scroll.custom_minimum_size.x, 340.0, "Left panel minimum width should stay readable without forcing controls off-screen")
+	var left_panel := instance.get_node_or_null("RootMargin/RootSplit/LeftPanelScroll/LeftPanel") as VBoxContainer
 	assert_true(left_panel != null, "Harness should expose the left panel container")
-	var title := left_panel.get_child(0) as Label
+	var title := instance.get_node_or_null("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn/TitleLabel") as Label
 	assert_true(title != null, "Harness should expose the scene title label")
-	assert_eq(title.get_theme_font_size("font_size"), 30, "Scene title should use the larger readability font")
-	var preview_stack := instance.get_node_or_null("RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack") as Control
+	assert_eq(title.get_theme_font_size("font_size"), 26, "Scene title should use the larger readability font")
+	var preview_stack := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack") as Control
 	assert_true(preview_stack != null, "Harness should expose the preview stack root")
-	assert_eq(preview_stack.custom_minimum_size, Vector2(960.0, 540.0), "Preview stack should preserve a readable world surface without demanding full-HD layout space")
-	var viewport := instance.get_node_or_null("RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/WorldPreviewViewportContainer/WorldPreviewViewport") as SubViewport
+	assert_eq(preview_stack.custom_minimum_size, Vector2(640.0, 360.0), "Preview stack should preserve a readable world surface without demanding full-HD layout space")
+	var viewport := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/WorldPreviewViewportContainer/WorldPreviewViewport") as SubViewport
 	assert_true(viewport != null, "Harness should create the world preview viewport")
-	assert_eq(viewport.size, Vector2i(960, 540), "Harness viewport should scale down with the preview stack so the world surface stays visible inside the rebuilt layout")
-	var camera_feed_host := instance.get_node_or_null("RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetColumn/CameraFeedHost") as Control
+	assert_eq(viewport.size, Vector2i(640, 360), "Harness viewport should follow the responsive preview frame so the world surface stays visible inside the rebuilt layout")
+	var camera_feed_host := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost") as Control
 	assert_true(camera_feed_host != null, "Harness should expose the media preview host")
-	assert_eq(camera_feed_host.custom_minimum_size.y, 158.0, "Media preview host should stay visible inside the inset without crowding the main world preview")
-	var camera_view := instance.get_node_or_null("RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetColumn/CameraFeedHost/MediaPipeCameraView") as TextureRect
+	assert_eq(camera_feed_host.custom_minimum_size.y, 132.0, "Media preview host should stay visible inside the inset without crowding the main world preview")
+	var camera_view := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost/MediaPipeCameraView") as TextureRect
 	assert_true(camera_view != null, "Harness should mount the MediaPipe camera view when the addon is present")
 	assert_eq(camera_view.expand_mode, TextureRect.EXPAND_IGNORE_SIZE, "Media preview should fill its host instead of collapsing to texture-native sizing")
 	assert_eq(camera_view.stretch_mode, TextureRect.STRETCH_KEEP_ASPECT_CENTERED, "Media preview should keep the source visible instead of cropping unpredictably")

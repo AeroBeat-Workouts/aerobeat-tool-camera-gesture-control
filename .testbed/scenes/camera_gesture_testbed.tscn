@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/camera_gesture_testbed.gd" id="1_testbed"]
+[ext_resource type="Script" path="res://scripts/tracking_inset_overlay.gd" id="2_tracking"]
 
 [node name="CameraGestureTestbed" type="Control"]
 layout_mode = 3
@@ -10,3 +11,353 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_testbed")
+
+[node name="RootMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="RootSplit" type="HSplitContainer" parent="RootMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+split_offset = 360
+
+[node name="LeftPanelScroll" type="ScrollContainer" parent="RootMargin/RootSplit"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+custom_minimum_size = Vector2(340, 0)
+
+[node name="LeftPanel" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+custom_minimum_size = Vector2(340, 0)
+theme_override_constants/separation = 10
+
+[node name="HeaderPanel" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HeaderMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="HeaderColumn" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn"]
+layout_mode = 2
+text = "Camera Gesture Control Testbed"
+
+[node name="SubtitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn"]
+layout_mode = 2
+text = "1920×1080 testbed with YAML-first profile controls, real MediaPipe live/replay hookup, 3D parallax preview, and trace-first fixture capture surfaces."
+autowrap_mode = 3
+
+[node name="StatusLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn"]
+layout_mode = 2
+text = "Status: booting"
+autowrap_mode = 3
+
+[node name="SourceLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn"]
+layout_mode = 2
+text = "Input source: booting"
+autowrap_mode = 3
+
+[node name="TrackingLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn"]
+layout_mode = 2
+text = "Tracking: booting"
+autowrap_mode = 3
+
+[node name="ProfileIdentityLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn"]
+layout_mode = 2
+text = "Profile: booting"
+autowrap_mode = 3
+
+[node name="ProfileSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ProfileMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/ProfileSection"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="ProfileSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/ProfileSection/ProfileMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/ProfileSection/ProfileMargin/ProfileSectionContent"]
+layout_mode = 2
+text = "Profile workflow (YAML-first)"
+
+[node name="SourceSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SourceMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/SourceSection"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="SourceSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/SourceSection/SourceMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/SourceSection/SourceMargin/SourceSectionContent"]
+layout_mode = 2
+text = "Source + fixture runtime"
+
+[node name="TraceSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TraceMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TraceSection"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="TraceSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TraceSection/TraceMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TraceSection/TraceMargin/TraceSectionContent"]
+layout_mode = 2
+text = "Trace capture scaffolding"
+
+[node name="TuningSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TuningMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TuningSection"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="TuningSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TuningSection/TuningMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TuningSection/TuningMargin/TuningSectionContent"]
+layout_mode = 2
+text = "Controller tuning"
+
+[node name="FakeSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="FakeMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/FakeSection"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="FakeSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/FakeSection/FakeMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/FakeSection/FakeMargin/FakeSectionContent"]
+layout_mode = 2
+text = "Fake input controls"
+
+[node name="RightColumn" type="VBoxContainer" parent="RootMargin/RootSplit"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="PreviewPanel" type="PanelContainer" parent="RootMargin/RootSplit/RightColumn"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="PreviewMargin" type="MarginContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="PreviewStack" type="Control" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin"]
+custom_minimum_size = Vector2(640, 360)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="WorldPreviewViewportContainer" type="SubViewportContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+
+[node name="WorldPreviewViewport" type="SubViewport" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/WorldPreviewViewportContainer"]
+handle_input_locally = false
+size = Vector2i(960, 540)
+render_target_update_mode = 4
+
+[node name="OverlayTop" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack"]
+layout_mode = 1
+offset_left = 16.0
+offset_top = 16.0
+theme_override_constants/separation = 4
+
+[node name="PreviewTitleLabel" type="Label" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/OverlayTop"]
+layout_mode = 2
+text = "3D World Preview"
+
+[node name="PreviewStatsLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/OverlayTop"]
+custom_minimum_size = Vector2(320, 64)
+layout_mode = 2
+fit_content = true
+scroll_active = false
+bbcode_enabled = true
+
+[node name="MediaInsetPanel" type="PanelContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack"]
+layout_mode = 1
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -296.0
+offset_top = -200.0
+offset_right = -16.0
+offset_bottom = -16.0
+
+[node name="MediaInsetMargin" type="MarginContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="MediaInsetColumn" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="MediaTitleLabel" type="Label" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn"]
+layout_mode = 2
+text = "MediaPipe / Tracking Inset"
+autowrap_mode = 3
+
+[node name="CameraFeedHost" type="Control" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn"]
+custom_minimum_size = Vector2(0, 132)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="MediaInsetPlaceholder" type="ColorRect" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.07, 0.1, 0.92)
+
+[node name="MediaPlaceholderLabel" type="Label" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost/MediaInsetPlaceholder"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "Awaiting source preview"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="TrackingInsetOverlay" type="Control" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2_tracking")
+
+[node name="MediaInsetStatusLabel" type="Label" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn"]
+layout_mode = 2
+text = "Inset: booting"
+autowrap_mode = 3
+
+[node name="DebugTabs" type="TabContainer" parent="RootMargin/RootSplit/RightColumn"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+
+[node name="Runtime" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="RuntimeDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Runtime"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = true
+scroll_active = true
+
+[node name="Trace" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="TraceDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Trace"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = true
+scroll_active = true
+
+[node name="Fixture" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="FixtureDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Fixture"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = true
+scroll_active = true
+
+[node name="Provider" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="ProviderDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Provider"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = true
+scroll_active = true
