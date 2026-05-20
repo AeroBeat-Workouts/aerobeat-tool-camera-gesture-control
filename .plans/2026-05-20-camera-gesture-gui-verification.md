@@ -165,6 +165,87 @@ In the same slice, the test scene readability was raised materially: the left pa
 
 **Folders Created/Deleted/Modified:**
 - `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/`
+- `/home/derrick/.openclaw/workspace/.temp/qa-camera-gesture-t6/`
+
+**Files Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/.temp/qa-camera-gesture-t6/shot_editor_open.png`
+- `/home/derrick/.openclaw/workspace/.temp/qa-camera-gesture-t6/shot_editor_loaded.png`
+- `/home/derrick/.openclaw/workspace/.temp/qa-camera-gesture-t6/shot_running_fake.png`
+- `/home/derrick/.openclaw/workspace/.temp/qa-camera-gesture-t6/shot_scrolled1.png`
+- `/home/derrick/.openclaw/workspace/.temp/qa-camera-gesture-t6/harness_running_replay.png`
+- `/home/derrick/.openclaw/workspace/.temp/qa-camera-gesture-t6/harness_after_f8.png`
+- `/home/derrick/.openclaw/workspace/.temp/qa-camera-gesture-t6/after_stop_before_harness.png`
+- `/home/derrick/.openclaw/workspace/.temp/qa-camera-gesture-t6/after_editor_close_for_harness.png`
+- `/home/derrick/.openclaw/workspace/.temp/qa-camera-gesture-t6/harness_after_close.png`
+
+**Status:** ❌ Failed
+
+**Results:** Real GUI verification did **not** confirm the replay-start fix. I reran the normal editor path in fake mode and captured `shot_running_fake.png`, which shows the widened left panel and larger section/status text in use; compared with the earlier `/.temp/qa-camera-gesture/shot3.png`, the UI is materially easier to read because the source/runtime section is no longer cramped and the status/profile text is legible without zooming. I then scrolled the live testbed UI far enough to expose the `Source + fixture runtime` controls and confirmed the replay controls are present in the real scene via `shot_scrolled1.png`, but reliable dropdown actuation through the current GUI-control lane remained flaky enough that I could not truthfully claim a manual in-scene selection.
+
+To keep the verification honest while still using the real GUI/editor path, I stopped the run with **F8**, closed the editor gracefully, temporarily changed only the local startup default from `fake` to `mediapipe_replay`, relaunched the editor, and reran the scene normally with **F6**. That produced direct GUI evidence in `harness_running_replay.png`: the scene came up as **`Input source: MediaPipe replay`**, but the status was **`Failed to start MediaPipe replay runtime`** and the right-hand preview reported **`Runtime: failed`**, so replay playback still did not start. The debugger/output evidence in `harness_after_f8.png` plus the captured editor log show the root symptom is still present: `ERROR: Failed to connect, status: 3` from `res://addons/aerobeat-input-mediapipe-python/src/camera_view.gd:205 @ _connect_with_retry()`. The same run also surfaced a more specific blocker before that connection failure: AutoStartManager reported a missing sidecar runtime manifest, sentinel, and Python executable under `/.testbed/addons/aerobeat-input-mediapipe-python/python_mediapipe/assets/runtimes/linux-x64/`, so this lane is blocked before replay can become healthy.
+
+Safe-stop/close rules were preserved throughout. The temporary startup-default harness change was reverted before finishing. Truthful QA verdict: readability improved in practice, but recorded-video replay still fails to start and the `status: 3` symptom still appears in a real GUI run.
+
+---
+
+### Task 7: Audit the replay-start/readability follow-up
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-qiu`  
+**SubAgent:** `primary`  
+**Role:** `auditor`  
+**References:** `REF-01`, `REF-02`, `REF-03`  
+**Prompt:** Independently audit the replay-start fix and readability follow-up. Verify that the `status: 3` recorded-video failure is actually resolved or honestly narrowed, and that the UI readability adjustments are real rather than nominal. Update this plan with the verdict and close the bead only when the truth is clear.
+
+**Folders Created/Deleted/Modified:**
+- `None planned`
+
+**Files Created/Deleted/Modified:**
+- `Plan update / evidence references only`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+---
+
+### Task 8: Repair Linux python sidecar runtime provisioning for replay
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-5e8`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-03`  
+**Prompt:** Repair the Linux python sidecar runtime provisioning/state used by the mounted `aerobeat-input-mediapipe-python` addon so recorded-video replay can actually boot from the camera-gesture `.testbed`. Treat the current QA evidence as source truth: runtime manifest / sentinel / python executable are missing under the mounted addon runtime path, and replay still fails with `camera_view.gd:205 @ _connect_with_retry(): Failed to connect, status: 3`. Fix the provisioning path honestly, validate safely without violating the no-headless-MediaPipe rule, update this plan with actual results, commit/push by default, and close the bead only when the provisioning repair is real.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/`
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-input-mediapipe-python/python_mediapipe/assets/runtimes/linux-x64/`
+
+**Files Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/addons.jsonc`
+- `Mounted addon/runtime state refreshed via GodotEnv reinstall and owning-repo runtime prep`
+
+**Status:** ✅ Complete
+
+**Results:** Root cause was consumer-side provisioning drift, not a missing source-side runtime build step. The camera-gesture `.testbed` was mounting `aerobeat-input-mediapipe-python` as a fresh remote Git checkout via `/.testbed/addons.jsonc`, but the Linux sidecar runtime contract is intentionally local and gitignored (`python_mediapipe/assets/runtimes/linux-x64/`). That meant the mounted addon could never contain the required `runtime-manifest.json`, `.runtime-ready`, or `venv/bin/python`, which matches the QA evidence exactly and explains why replay still fell through to `camera_view.gd:205 @ _connect_with_retry(): Failed to connect, status: 3`.
+
+The honest fix stayed out of generated mirrors. In the consumer repo, `/.testbed/addons.jsonc` now resolves `aerobeat-input-mediapipe-python` from the local sibling repo `../../aerobeat-input-mediapipe-python` with `source: "symlink"`, so the mounted addon sees the owning repo’s prepared runtime state instead of an impossible-to-hydrate remote checkout. In the owning source repo, I refreshed the real Linux runtime contract with `python3 python_mediapipe/prepare_runtime.py --platform linux-x64 --mode dev --install-requirements --validate --json`, which reported `validation_status: "ready"` and zero validation errors. Then in the consumer repo I removed the stale generated addon/cache copies and reran `cd .testbed && godotenv addons install`; the refreshed mount is now a symlink to `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-input-mediapipe-python`.
+
+Safe non-headless-MediaPipe validation only: verified from the mounted consumer path that `python_mediapipe/assets/runtimes/linux-x64/runtime-manifest.json`, `.runtime-ready`, and `venv/bin/python` all exist again, reran `python3 python_mediapipe/prepare_runtime.py --platform linux-x64 --mode dev --validate --json` from the mounted addon path with zero validation errors, and confirmed the mounted runtime interpreter can import `mediapipe`, `cv2`, and `numpy`. Important truth boundary: this coder slice repairs the real provisioning path and removes the missing-runtime blocker, but it does **not** itself claim that GUI replay has been re-verified end-to-end; Task 9 still owns the in-editor replay proof.
+
+---
+
+### Task 9: Verify replay boot after Linux sidecar runtime repair
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-nue`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-03`, `REF-04`  
+**Prompt:** Verify in the real Godot editor that recorded-video replay now boots after the Linux python sidecar runtime repair. Confirm whether the `status: 3` failure is gone, whether runtime state becomes healthy, and whether replay actually starts. Preserve the Godot-safe start/stop/close rules, gather evidence, update this plan with actual results, and close the bead only when the result is truthful.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/`
 - `Potential screenshot/export evidence folders`
 
 **Files Created/Deleted/Modified:**
@@ -176,13 +257,13 @@ In the same slice, the test scene readability was raised materially: the left pa
 
 ---
 
-### Task 7: Audit the replay-start/readability follow-up
+### Task 10: Audit the Linux sidecar runtime repair follow-up
 
-**Bead ID:** `aerobeat-tool-camera-gesture-control-qiu`  
+**Bead ID:** `aerobeat-tool-camera-gesture-control-rdl`  
 **SubAgent:** `primary`  
 **Role:** `auditor`  
-**References:** `REF-01`, `REF-02`, `REF-03`  
-**Prompt:** Independently audit the replay-start fix and readability follow-up. Verify that the `status: 3` recorded-video failure is actually resolved or honestly narrowed, and that the UI readability adjustments are real rather than nominal. Update this plan with the verdict and close the bead only when the truth is clear.
+**References:** `REF-02`, `REF-03`  
+**Prompt:** Independently audit the Linux python sidecar runtime repair and replay follow-up. Verify whether replay boot is genuinely fixed or honestly narrowed further, and record the exact remaining blocker if it still fails. Update this plan with the verdict and close the bead only when the truth is clear.
 
 **Folders Created/Deleted/Modified:**
 - `None planned`
@@ -207,7 +288,7 @@ In the same slice, the test scene readability was raised materially: the left pa
 **Commits:**
 - No new auditor commit; audited current working tree state and evidence only.
 
-**Lessons Learned:** The safe-close improvement is worth keeping, but it does not remove the need for the normal GUI stop path because the current manager intentionally does not arm in windowed editor sessions. Also, the camera-gesture lane now has trace-export scaffolding ready, but any claim about forward/backward `translation.z` polarity must wait for a real exported trace from live or replay mode rather than screenshots or assumptions alone.
+**Lessons Learned:** The safe-close improvement is worth keeping, but it does not remove the need for the normal GUI stop path because the current manager intentionally does not arm in windowed editor sessions. Also, the camera-gesture lane now has trace-export scaffolding ready, but any claim about forward/backward `translation.z` polarity must wait for a real exported trace from live or replay mode rather than screenshots or assumptions alone. The follow-up replay QA also proved that source-side timing was not the only blocker: Linux sidecar runtime provisioning inside the mounted `aerobeat-input-mediapipe-python` addon path must be correct before replay can ever become healthy.
 
 ---
 
