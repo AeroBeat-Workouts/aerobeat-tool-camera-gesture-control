@@ -20,8 +20,8 @@ const DEFAULT_TESTBED_VIEWPORT_SIZE := Vector2i(960, 540)
 const PREVIEW_STACK_MIN_SIZE := Vector2(640.0, 360.0)
 const LEFT_PANEL_SPLIT_OFFSET := 360
 const LEFT_PANEL_MIN_WIDTH := 340
-const MEDIA_INSET_WIDTH := 280.0
-const MEDIA_INSET_HEIGHT := 184.0
+const MEDIA_INSET_WIDTH := 150.0
+const MEDIA_INSET_HEIGHT := 100.0
 const CAMERA_FEED_MIN_HEIGHT := 132.0
 const DEBUG_TABS_MIN_HEIGHT := 180.0
 const LEFT_PANEL_FONT_SIZE := 15
@@ -165,9 +165,7 @@ func _bind_layout_nodes() -> void:
 	var title := get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn/TitleLabel") as Label
 	title.add_theme_font_size_override("font_size", TITLE_FONT_SIZE)
 
-	var subtitle := get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn/SubtitleLabel") as Label
-	subtitle.add_theme_font_size_override("font_size", LEFT_PANEL_FONT_SIZE)
-
+	
 	_status_label = get_node("RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn/StatusLabel") as Label
 	_status_label.add_theme_font_size_override("font_size", STATUS_LABEL_FONT_SIZE)
 

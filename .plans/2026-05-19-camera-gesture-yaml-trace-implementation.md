@@ -128,25 +128,97 @@ The stopping condition for this plan is explicit: keep executing slices until th
 **Files Created/Deleted/Modified:**
 - integration and validation artifacts as needed
 
+**Status:** ⚠️ Partial
+
+**Results:** Integrated the camera-gesture testbed with the input-core shared provider-session seam. The harness now requests/acquires an already-published `mediapipe_python` session before any local startup, lazily starts its own MediaPipe provider only when needed, publishes locally owned sessions back through `AeroProviderSessionRegistry`, and cleanly releases or unpublishes on switch-away / teardown according to borrower-vs-owner state. The trace/debug surfaces now expose session-role metadata and the known duplicate-prevention boundary directly, README/testbed docs were refreshed, and repo-local GUT coverage now explicitly proves both borrowed-session reuse and owned-session publish/unpublish behavior. Validation included refreshing `.testbed` addons so the mounted input-core actually contained the new registry seam, headless import, `--check-only` parse checks for the testbed and new tests, targeted GUT for session reuse / controller / testbed scene, full repo-local GUT, `git diff --check`, and a headless `--quit-after 1000` smoke run. Commit/push details: landed on `main` in commit `f633222` (`feat: integrate shared mediapipe session reuse`). Honest remaining blocker: the currently mounted `aerobeat-input-mediapipe-python` owner/proving path still does not auto-publish its live provider session, so true cross-lane duplicate prevention is only available once that owner lane adopts the same registry seam.
+
+---
+
+### Task 5: Publish mediapipe-python owner sessions into the shared registry
+
+**Bead ID:** `aerobeat-input-mediapipe-python-sct`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-input-mediapipe-python`, adopt the new `AeroProviderSessionRegistry` owner path so the lane that actually owns/starts a live MediaPipe provider publishes its session when active and unpublishes it on teardown. Keep the seam honest and limited to in-process shared reuse; do not invent cross-process claims. Add the narrow tests/docs needed to prove the owner lane now participates in duplicate-prevention correctly. Claim the bead on start, validate, commit/push, and close only when the owner publication seam is usable by downstream repos like camera-gesture.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-input-mediapipe-python/src/`
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-input-mediapipe-python/.testbed/` if needed
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-input-mediapipe-python/docs/` if needed
+
+**Files Created/Deleted/Modified:**
+- provider/session publication files/tests/docs as needed
+
 **Status:** ✅ Complete
 
-**Results:** Integrated the camera-gesture testbed with the input-core shared provider-session seam. The harness now requests/acquires an already-published `mediapipe_python` session before any local startup, lazily starts its own MediaPipe provider only when needed, publishes locally owned sessions back through `AeroProviderSessionRegistry`, and cleanly releases or unpublishes on switch-away / teardown according to borrower-vs-owner state. The trace/debug surfaces now expose session-role metadata and the known duplicate-prevention boundary directly, README/testbed docs were refreshed, and repo-local GUT coverage now explicitly proves both borrowed-session reuse and owned-session publish/unpublish behavior. Validation included refreshing `.testbed` addons so the mounted input-core actually contained the new registry seam, headless import, `--check-only` parse checks for the testbed and new tests, targeted GUT for session reuse / controller / testbed scene, full repo-local GUT, `git diff --check`, and a headless `--quit-after 1000` smoke run. Honest remaining blocker: the currently mounted `aerobeat-input-mediapipe-python` owner/proving path still does not auto-publish its live provider session, so true cross-lane duplicate prevention is only available once that owner lane adopts the same registry seam. Commit/push details: pushed to `main` as `feat: integrate shared mediapipe session reuse`.
+**Results:** Landed the owner-lane publication seam in `aerobeat-input-mediapipe-python`. The assembly-facing `src/input_provider.gd` now auto-publishes itself into `AeroProviderSessionRegistry` under canonical key `mediapipe_python` after successful startup, and cleanly unpublishes on `stop()` and exit-tree teardown. Added narrow unit coverage proving owner start publishes a borrowable shared session, owner stop unpublishes it, and second-owner collisions leave the first canonical session intact. Documented the same-runtime-only scope and the honest limitation that raw proving-harness direct-backend startup is still not a published shared adapter session. Validation included headless import, targeted GUT for the new adapter seam, and `git diff --check`. Commit/push details: landed on `main` in commit `cc23bce` (`feat: publish shared mediapipe owner sessions`). This clears the remaining owner-publication technical blocker for same-runtime duplicate-prevention before recorded fixtures/human review.
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Ready for human verification + recorded fixtures
 
-**What We Built:** Camera-gesture is now consumer/owner-aware for shared MediaPipe sessions inside the hidden testbed: YAML profile load/apply behavior remains covered, config/debug/trace surfaces are in place, camera attach/detach rules are explicitly tested, and the testbed will reuse an already-published `mediapipe_python` provider instead of starting a duplicate local one. When camera-gesture owns the provider, it now publishes that session for later consumers and unpublishes/releases it cleanly on teardown.
+**What We Built:** A YAML-first, trace-aware camera-gesture tool lane with a rebuilt hidden 16:9 testbed harness, default checked-in profile, richer debug/export surfaces, and same-runtime shared MediaPipe session reuse across repos. `aerobeat-tool-camera-gesture-control` now reuses published `mediapipe_python` sessions when available, publishes owned sessions when it starts one locally, and tears them down honestly. `aerobeat-input-core` now provides the shared `AeroProviderSessionRegistry` seam, and `aerobeat-input-mediapipe-python` now publishes assembly-facing owner sessions into that registry.
 
-**Reference Check:** `REF-01` and `REF-02` remain satisfied by the YAML-first profile/runtime/testbed stack now exercised by the full repo-local QA pass. `REF-05` is satisfied on the consumer side: camera-gesture adopts the new `AeroProviderSessionRegistry` seam and exposes its ownership/borrower state in trace/debug outputs. `REF-06` is only partially satisfied for end-to-end duplicate prevention because the mounted MediaPipe donor/owner path still does not auto-publish its live provider session; once that upstream owner lane publishes, the no-duplicate path becomes fully active across repos.
+**Reference Check:** `REF-01` and `REF-02` are satisfied by the YAML-first profile/runtime/testbed stack and the contract-driven harness shape now landed in the repo. `REF-05` is satisfied by the shared provider-session registry seam and the camera-gesture consumer adoption path. `REF-06` is satisfied for the same-runtime owner/consumer duplicate-prevention path through the assembly-facing adapter/publisher flow; the documented remaining limitation is only that raw proving-harness direct-backend startup is not itself a published adapter session, which is now explicit rather than hidden.
 
 **Commits:**
-- `feat: integrate shared mediapipe session reuse` (pushed to `main`)
+- `30d3a63` - `feat: land yaml camera gesture profile seam`
+- `6baa71b` - `feat: upgrade camera gesture harness trace surface`
+- `f633222` - `feat: integrate shared mediapipe session reuse`
+- `d8abd1d` - `Add shared provider session reuse seam` (in `aerobeat-input-core`)
+- `cc23bce` - `feat: publish shared mediapipe owner sessions` (in `aerobeat-input-mediapipe-python`)
 
-**Lessons Learned:** Refreshing `.testbed` addons was part of the truth check, not busywork: the initial mounted `aerobeat-input-core` copy was stale enough that the registry file did not exist locally, so code-only inspection would have overstated readiness. The remaining technical seam is not in camera-gesture anymore; it is the owner-lane publication gap in the mounted MediaPipe proving path.
+**Lessons Learned:** Refreshing mounted `.testbed` addons is part of real validation, not bookkeeping; stale mounted copies can make a contract appear absent even after it landed upstream. The right architecture split held up: camera-gesture owns config-driven camera behavior and testbed observability, `input-core` owns shared in-process session reuse semantics, and `mediapipe-python` owns publication of live adapter sessions when it is the lane that actually starts the provider.
 
 ---
 
-*Completed on 2026-05-19*
+---
+
+### Task 6: Scaffold first candidate camera-gesture fixture YAMLs
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-g5l`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-01`, `REF-02`  
+**Prompt:** In `aerobeat-tool-camera-gesture-control`, scaffold the first 8 candidate fixture YAML files to match Derrick’s recorded filenames exactly. Place them under `.testbed/assets/fixtures/camera_gesture/head_pose/candidates/` with same-basename `.fixture.yaml` files, using the agreed camera-gesture fixture shape and honest candidate-level defaults. Do not invent precise timing windows beyond safe placeholders if the edited clips are not yet finalized. Make the files easy for Derrick/Byte to tune after the videos are dropped in. Claim the bead on start, validate the YAML/docs shape, commit/push on success, and close the bead when done.
+
+**Folders Created/Deleted/Modified:**
+- `.testbed/assets/fixtures/camera_gesture/head_pose/candidates/`
+
+**Files Created/Deleted/Modified:**
+- matching `*.fixture.yaml` files for the 8 recorded clips
+
+**Status:** ✅ Complete
+
+**Results:** Created 8 candidate fixture sidecars under `.testbed/assets/fixtures/camera_gesture/head_pose/candidates/` matching Derrick’s recorded basenames exactly. Each YAML uses same-basename pairing with a relative `./<video>.mp4` path, candidate-stage metadata, inferred intent/sample-source/expected axis-direction semantics, and honest placeholder timing scaffolds/comments instead of fabricated precise windows. Validated all 8 with `python3` + `yaml.safe_load`, verifying fixture ids, video paths, family/feature fields, candidate stage, and repetition hints. Commit/push details: landed on `main` in commit `c61cf17` (`Add candidate head-pose fixture scaffolds`). Small follow-up note captured: once edited clips are synced, the first tuning pass should fill the rep windows and verify real `translation.z` sign behavior for forward/backward clips from exported traces rather than assuming it only from filename semantics.
+
+---
+
+---
+
+### Task 7: Tune first candidate fixture timing windows from synced clips
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-03w`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-01`, `REF-02`, `REF-06`  
+**Prompt:** In `aerobeat-tool-camera-gesture-control`, inspect the 8 synced head-pose candidate clips, tune the candidate `.fixture.yaml` timing windows for the repeated motions, and run the first trace-backed validation pass where feasible. Keep the edits honest: prefer approximate human-authored windows over fake precision, and document any cases where the actual exported trace sign/direction still needs confirmation. Claim the bead on start, validate the YAMLs, commit/push on success, and close the bead when done.
+
+**Folders Created/Deleted/Modified:**
+- `.testbed/assets/fixtures/camera_gesture/head_pose/candidates/`
+- `.testbed/test-results/fixtures/` if runtime artifacts are produced
+
+**Files Created/Deleted/Modified:**
+- 8 candidate `*.fixture.yaml` files
+- any small docs/notes updates only if helpful
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+*Completed on 2026-05-19 — remaining work is recorded fixtures + final human verification/review after this timing-tuning pass*

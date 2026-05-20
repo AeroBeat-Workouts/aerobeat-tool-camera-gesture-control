@@ -1,9 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://64vvws0c8fdf"]
 
-[ext_resource type="Script" path="res://scripts/camera_gesture_testbed.gd" id="1_testbed"]
-[ext_resource type="Script" path="res://scripts/tracking_inset_overlay.gd" id="2_tracking"]
+[ext_resource type="Script" uid="uid://x70tlelhgy16" path="res://scripts/camera_gesture_testbed.gd" id="1_testbed"]
+[ext_resource type="Script" uid="uid://cu0tnlnaanr0d" path="res://scripts/tracking_inset_overlay.gd" id="2_tracking"]
 
-[node name="CameraGestureTestbed" type="Control"]
+[node name="CameraGestureTestbed" type="Control" unique_id=1176220401]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -12,7 +12,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_testbed")
 
-[node name="RootMargin" type="MarginContainer" parent="."]
+[node name="RootMargin" type="MarginContainer" parent="." unique_id=985433246]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -24,176 +24,171 @@ theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 8
 theme_override_constants/margin_bottom = 8
 
-[node name="RootSplit" type="HSplitContainer" parent="RootMargin"]
+[node name="RootSplit" type="HSplitContainer" parent="RootMargin" unique_id=560257648]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+split_offsets = PackedInt32Array(360)
 split_offset = 360
 
-[node name="LeftPanelScroll" type="ScrollContainer" parent="RootMargin/RootSplit"]
+[node name="LeftPanelScroll" type="ScrollContainer" parent="RootMargin/RootSplit" unique_id=1179524344]
+custom_minimum_size = Vector2(340, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-custom_minimum_size = Vector2(340, 0)
 
-[node name="LeftPanel" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll"]
+[node name="LeftPanel" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll" unique_id=1996178595]
+custom_minimum_size = Vector2(340, 0)
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_vertical = 1
-custom_minimum_size = Vector2(340, 0)
 theme_override_constants/separation = 10
 
-[node name="HeaderPanel" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel"]
+[node name="HeaderPanel" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel" unique_id=648477476]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="HeaderMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel"]
+[node name="HeaderMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel" unique_id=62273188]
 layout_mode = 2
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 12
 
-[node name="HeaderColumn" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin"]
+[node name="HeaderColumn" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin" unique_id=205490478]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="TitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn"]
+[node name="TitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn" unique_id=1915114048]
 layout_mode = 2
-text = "Camera Gesture Control Testbed"
+text = "Camera Gesture Test"
 
-[node name="SubtitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn"]
-layout_mode = 2
-text = "1920×1080 testbed with YAML-first profile controls, real MediaPipe live/replay hookup, 3D parallax preview, and trace-first fixture capture surfaces."
-autowrap_mode = 3
-
-[node name="StatusLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn"]
+[node name="StatusLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn" unique_id=1450769321]
 layout_mode = 2
 text = "Status: booting"
 autowrap_mode = 3
 
-[node name="SourceLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn"]
+[node name="SourceLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn" unique_id=436807283]
 layout_mode = 2
 text = "Input source: booting"
 autowrap_mode = 3
 
-[node name="TrackingLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn"]
+[node name="TrackingLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn" unique_id=28211375]
 layout_mode = 2
 text = "Tracking: booting"
 autowrap_mode = 3
 
-[node name="ProfileIdentityLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn"]
+[node name="ProfileIdentityLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/HeaderPanel/HeaderMargin/HeaderColumn" unique_id=1360348434]
 layout_mode = 2
 text = "Profile: booting"
 autowrap_mode = 3
 
-[node name="ProfileSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel"]
+[node name="ProfileSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel" unique_id=1825744086]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ProfileMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/ProfileSection"]
+[node name="ProfileMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/ProfileSection" unique_id=1732832313]
 layout_mode = 2
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 12
 
-[node name="ProfileSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/ProfileSection/ProfileMargin"]
+[node name="ProfileSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/ProfileSection/ProfileMargin" unique_id=823153863]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/ProfileSection/ProfileMargin/ProfileSectionContent"]
+[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/ProfileSection/ProfileMargin/ProfileSectionContent" unique_id=1799304843]
 layout_mode = 2
 text = "Profile workflow (YAML-first)"
 
-[node name="SourceSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel"]
+[node name="SourceSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel" unique_id=769490931]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="SourceMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/SourceSection"]
+[node name="SourceMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/SourceSection" unique_id=1614543616]
 layout_mode = 2
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 12
 
-[node name="SourceSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/SourceSection/SourceMargin"]
+[node name="SourceSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/SourceSection/SourceMargin" unique_id=75078150]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/SourceSection/SourceMargin/SourceSectionContent"]
+[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/SourceSection/SourceMargin/SourceSectionContent" unique_id=1376408153]
 layout_mode = 2
 text = "Source + fixture runtime"
 
-[node name="TraceSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel"]
+[node name="TraceSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel" unique_id=90843729]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="TraceMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TraceSection"]
+[node name="TraceMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TraceSection" unique_id=999379902]
 layout_mode = 2
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 12
 
-[node name="TraceSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TraceSection/TraceMargin"]
+[node name="TraceSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TraceSection/TraceMargin" unique_id=70584432]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TraceSection/TraceMargin/TraceSectionContent"]
+[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TraceSection/TraceMargin/TraceSectionContent" unique_id=1342385310]
 layout_mode = 2
 text = "Trace capture scaffolding"
 
-[node name="TuningSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel"]
+[node name="TuningSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel" unique_id=1916069536]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="TuningMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TuningSection"]
+[node name="TuningMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TuningSection" unique_id=1095726579]
 layout_mode = 2
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 12
 
-[node name="TuningSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TuningSection/TuningMargin"]
+[node name="TuningSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TuningSection/TuningMargin" unique_id=590841056]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TuningSection/TuningMargin/TuningSectionContent"]
+[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/TuningSection/TuningMargin/TuningSectionContent" unique_id=378075683]
 layout_mode = 2
 text = "Controller tuning"
 
-[node name="FakeSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel"]
+[node name="FakeSection" type="PanelContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel" unique_id=1780537166]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="FakeMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/FakeSection"]
+[node name="FakeMargin" type="MarginContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/FakeSection" unique_id=730209003]
 layout_mode = 2
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 12
 
-[node name="FakeSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/FakeSection/FakeMargin"]
+[node name="FakeSectionContent" type="VBoxContainer" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/FakeSection/FakeMargin" unique_id=63892425]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/FakeSection/FakeMargin/FakeSectionContent"]
+[node name="SectionTitleLabel" type="Label" parent="RootMargin/RootSplit/LeftPanelScroll/LeftPanel/FakeSection/FakeMargin/FakeSectionContent" unique_id=850432988]
 layout_mode = 2
 text = "Fake input controls"
 
-[node name="RightColumn" type="VBoxContainer" parent="RootMargin/RootSplit"]
+[node name="RightColumn" type="VBoxContainer" parent="RootMargin/RootSplit" unique_id=336079516]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 8
 
-[node name="PreviewPanel" type="PanelContainer" parent="RootMargin/RootSplit/RightColumn"]
+[node name="PreviewPanel" type="PanelContainer" parent="RootMargin/RootSplit/RightColumn" unique_id=253346639]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="PreviewMargin" type="MarginContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel"]
+[node name="PreviewMargin" type="MarginContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel" unique_id=680709724]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -202,13 +197,13 @@ theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 8
 theme_override_constants/margin_bottom = 8
 
-[node name="PreviewStack" type="Control" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin"]
+[node name="PreviewStack" type="Control" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin" unique_id=2096305451]
 custom_minimum_size = Vector2(640, 360)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="WorldPreviewViewportContainer" type="SubViewportContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack"]
+[node name="WorldPreviewViewportContainer" type="SubViewportContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack" unique_id=1654400855]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -217,62 +212,68 @@ grow_horizontal = 2
 grow_vertical = 2
 stretch = true
 
-[node name="WorldPreviewViewport" type="SubViewport" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/WorldPreviewViewportContainer"]
+[node name="WorldPreviewViewport" type="SubViewport" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/WorldPreviewViewportContainer" unique_id=2038883455]
 handle_input_locally = false
-size = Vector2i(960, 540)
+size = Vector2i(640, 860)
 render_target_update_mode = 4
 
-[node name="OverlayTop" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack"]
+[node name="OverlayTop" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack" unique_id=2056619657]
 layout_mode = 1
 offset_left = 16.0
 offset_top = 16.0
 theme_override_constants/separation = 4
 
-[node name="PreviewTitleLabel" type="Label" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/OverlayTop"]
+[node name="PreviewTitleLabel" type="Label" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/OverlayTop" unique_id=1601829704]
+visible = false
 layout_mode = 2
 text = "3D World Preview"
 
-[node name="PreviewStatsLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/OverlayTop"]
+[node name="PreviewStatsLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/OverlayTop" unique_id=465966086]
+visible = false
 custom_minimum_size = Vector2(320, 64)
 layout_mode = 2
+bbcode_enabled = true
 fit_content = true
 scroll_active = false
-bbcode_enabled = true
 
-[node name="MediaInsetPanel" type="PanelContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack"]
+[node name="MediaInsetPanel" type="PanelContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack" unique_id=613048483]
 layout_mode = 1
+anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -296.0
-offset_top = -200.0
-offset_right = -16.0
-offset_bottom = -16.0
+offset_left = -226.0
+offset_top = -170.0
+offset_right = -26.0
+offset_bottom = -22.0
+grow_horizontal = 0
+grow_vertical = 0
 
-[node name="MediaInsetMargin" type="MarginContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel"]
+[node name="MediaInsetMargin" type="MarginContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel" unique_id=1340935887]
 layout_mode = 2
 theme_override_constants/margin_left = 8
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 8
 theme_override_constants/margin_bottom = 8
 
-[node name="MediaInsetColumn" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin"]
+[node name="MediaInsetColumn" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin" unique_id=296351301]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="MediaTitleLabel" type="Label" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn"]
+[node name="MediaTitleLabel" type="Label" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn" unique_id=1526992067]
+visible = false
 layout_mode = 2
 text = "MediaPipe / Tracking Inset"
 autowrap_mode = 3
 
-[node name="CameraFeedHost" type="Control" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn"]
+[node name="CameraFeedHost" type="Control" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn" unique_id=2090657574]
 custom_minimum_size = Vector2(0, 132)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="MediaInsetPlaceholder" type="ColorRect" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost"]
+[node name="MediaInsetPlaceholder" type="ColorRect" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost" unique_id=1538005614]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -281,7 +282,8 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.05, 0.07, 0.1, 0.92)
 
-[node name="MediaPlaceholderLabel" type="Label" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost/MediaInsetPlaceholder"]
+[node name="MediaPlaceholderLabel" type="Label" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost/MediaInsetPlaceholder" unique_id=484861592]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -293,7 +295,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 3
 
-[node name="TrackingInsetOverlay" type="Control" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost"]
+[node name="TrackingInsetOverlay" type="Control" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost" unique_id=1196139460]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -303,61 +305,65 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("2_tracking")
 
-[node name="MediaInsetStatusLabel" type="Label" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn"]
+[node name="MediaInsetStatusLabel" type="Label" parent="RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn" unique_id=383364181]
+visible = false
 layout_mode = 2
 text = "Inset: booting"
 autowrap_mode = 3
 
-[node name="DebugTabs" type="TabContainer" parent="RootMargin/RootSplit/RightColumn"]
+[node name="DebugTabs" type="TabContainer" parent="RootMargin/RootSplit/RightColumn" unique_id=22165730]
 custom_minimum_size = Vector2(0, 180)
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_vertical = 1
+current_tab = 0
 
-[node name="Runtime" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs"]
+[node name="Runtime" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs" unique_id=2107220271]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+metadata/_tab_index = 0
 
-[node name="RuntimeDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Runtime"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-bbcode_enabled = true
-scroll_active = true
-
-[node name="Trace" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="TraceDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Trace"]
+[node name="RuntimeDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Runtime" unique_id=786681256]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 bbcode_enabled = true
-scroll_active = true
 
-[node name="Fixture" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs"]
+[node name="Trace" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs" unique_id=1101414149]
+visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+metadata/_tab_index = 1
 
-[node name="FixtureDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Fixture"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-bbcode_enabled = true
-scroll_active = true
-
-[node name="Provider" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="ProviderDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Provider"]
+[node name="TraceDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Trace" unique_id=319371739]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 bbcode_enabled = true
-scroll_active = true
+
+[node name="Fixture" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs" unique_id=1626379299]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+metadata/_tab_index = 2
+
+[node name="FixtureDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Fixture" unique_id=259252204]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = true
+
+[node name="Provider" type="VBoxContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs" unique_id=393423212]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+metadata/_tab_index = 3
+
+[node name="ProviderDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Provider" unique_id=937099289]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = true
