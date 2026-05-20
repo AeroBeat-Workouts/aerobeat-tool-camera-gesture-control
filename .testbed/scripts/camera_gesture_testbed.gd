@@ -17,6 +17,15 @@ const MEDIAPIPE_AUTOSTART_MANAGER_PATH := "res://addons/aerobeat-input-mediapipe
 const PROVIDER_SESSION_REGISTRY_PATH := "res://addons/aerobeat-input-core/src/runtime/provider_session_registry.gd"
 const DEFAULT_MEDIAPIPE_STREAM_URL := "http://127.0.0.1:4243/camera"
 const DEFAULT_TESTBED_VIEWPORT_SIZE := Vector2i(1920, 1080)
+const LEFT_PANEL_SPLIT_OFFSET := 520
+const LEFT_PANEL_MIN_WIDTH := 500
+const LEFT_PANEL_FONT_SIZE := 17
+const LEFT_PANEL_INPUT_FONT_SIZE := 16
+const STATUS_LABEL_FONT_SIZE := 18
+const SECTION_TITLE_FONT_SIZE := 20
+const TITLE_FONT_SIZE := 30
+const PREVIEW_TITLE_FONT_SIZE := 24
+const MEDIA_TITLE_FONT_SIZE := 20
 const MEDIAPIPE_SESSION_OWNER_ID := "aerobeat-tool-camera-gesture-control:testbed"
 const MEDIAPIPE_SESSION_CONSUMER_ID := "aerobeat-tool-camera-gesture-control:testbed_consumer"
 const MEDIAPIPE_SESSION_KEY := "mediapipe_python/camera_gesture_testbed"
@@ -135,47 +144,52 @@ func _build_layout() -> void:
 	var root := HSplitContainer.new()
 	root.name = "RootSplit"
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.split_offset = 430
+	root.split_offset = LEFT_PANEL_SPLIT_OFFSET
 	add_child(root)
 
 	var left_scroll := ScrollContainer.new()
 	left_scroll.name = "LeftPanelScroll"
 	left_scroll.size_flags_horizontal = Control.SIZE_FILL
-	left_scroll.custom_minimum_size = Vector2(400, 0)
+	left_scroll.custom_minimum_size = Vector2(LEFT_PANEL_MIN_WIDTH, 0)
 	root.add_child(left_scroll)
 
 	var left_panel := VBoxContainer.new()
 	left_panel.name = "LeftPanel"
 	left_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_panel.custom_minimum_size = Vector2(400, 820)
+	left_panel.custom_minimum_size = Vector2(LEFT_PANEL_MIN_WIDTH, 820)
 	left_panel.add_theme_constant_override("separation", 12)
 	left_scroll.add_child(left_panel)
 
 	var title := Label.new()
 	title.text = "Camera Gesture Control Testbed"
-	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_font_size_override("font_size", TITLE_FONT_SIZE)
 	left_panel.add_child(title)
 
 	var subtitle := Label.new()
 	subtitle.text = "1920×1080 testbed with YAML-first profile controls, real MediaPipe live/replay hookup, 3D parallax preview, and trace-first fixture capture surfaces."
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	subtitle.add_theme_font_size_override("font_size", LEFT_PANEL_FONT_SIZE)
 	left_panel.add_child(subtitle)
 
 	_status_label = Label.new()
 	_status_label.text = "Status: booting"
+	_status_label.add_theme_font_size_override("font_size", STATUS_LABEL_FONT_SIZE)
 	left_panel.add_child(_status_label)
 
 	_source_label = Label.new()
 	_source_label.text = "Input source: booting"
+	_source_label.add_theme_font_size_override("font_size", STATUS_LABEL_FONT_SIZE)
 	left_panel.add_child(_source_label)
 
 	_tracking_label = Label.new()
 	_tracking_label.text = "Tracking: booting"
+	_tracking_label.add_theme_font_size_override("font_size", STATUS_LABEL_FONT_SIZE)
 	left_panel.add_child(_tracking_label)
 
 	_profile_identity_label = Label.new()
 	_profile_identity_label.text = "Profile: booting"
 	_profile_identity_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_profile_identity_label.add_theme_font_size_override("font_size", STATUS_LABEL_FONT_SIZE)
 	left_panel.add_child(_profile_identity_label)
 
 	var profile_panel := _add_section_panel(left_panel, "Profile workflow (YAML-first)")
@@ -290,6 +304,8 @@ func _build_layout() -> void:
 	_fake_controls["animate"] = _add_toggle(fake_panel, "Animate fake input", true, _on_fake_control_changed)
 	_fake_controls["animation_speed"] = _add_slider(fake_panel, "Fake animation speed", 0.1, 4.0, 0.1, 1.0, _on_fake_control_changed)
 
+	_apply_left_panel_readability_theme(left_panel)
+
 	var right_column := VBoxContainer.new()
 	right_column.name = "RightColumn"
 	right_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -340,7 +356,7 @@ func _build_layout() -> void:
 	_preview_title_label = Label.new()
 	_preview_title_label.name = "PreviewTitleLabel"
 	_preview_title_label.text = "3D World Preview"
-	_preview_title_label.add_theme_font_size_override("font_size", 22)
+	_preview_title_label.add_theme_font_size_override("font_size", PREVIEW_TITLE_FONT_SIZE)
 	overlay_top.add_child(_preview_title_label)
 
 	_preview_stats_label = RichTextLabel.new()
@@ -369,7 +385,7 @@ func _build_layout() -> void:
 
 	var media_title := Label.new()
 	media_title.text = "MediaPipe / Tracking Inset"
-	media_title.add_theme_font_size_override("font_size", 18)
+	media_title.add_theme_font_size_override("font_size", MEDIA_TITLE_FONT_SIZE)
 	media_column.add_child(media_title)
 
 	_camera_feed_host = Control.new()
@@ -889,9 +905,11 @@ func _on_mediapipe_server_progress(_percentage: int, message: String) -> void:
 	_mediapipe_runtime_status = message
 
 func _on_mediapipe_server_started(_pid: int) -> void:
-	_mediapipe_runtime_status = "ready"
+	# AutoStartManager emits server_started as soon as the detached process exists,
+	# before its own stabilization wait finishes. Starting the preview stream here can
+	# race replay startup and consume the only immediate retry window too early.
+	_mediapipe_runtime_status = "stabilizing"
 	_mediapipe_runtime_last_error = ""
-	call_deferred("_ensure_mediapipe_camera_stream")
 
 func _on_mediapipe_server_stopped() -> void:
 	_mediapipe_runtime_status = "stopped"
@@ -1480,9 +1498,29 @@ func _add_section_panel(parent: VBoxContainer, title: String) -> VBoxContainer:
 	margin.add_child(column)
 	var label := Label.new()
 	label.text = title
-	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_font_size_override("font_size", SECTION_TITLE_FONT_SIZE)
 	column.add_child(label)
 	return column
+
+func _apply_left_panel_readability_theme(node: Node) -> void:
+	if node is Label:
+		var label := node as Label
+		if not label.has_theme_font_size_override("font_size"):
+			label.add_theme_font_size_override("font_size", LEFT_PANEL_FONT_SIZE)
+	elif node is Button:
+		var button := node as Button
+		button.add_theme_font_size_override("font_size", LEFT_PANEL_INPUT_FONT_SIZE)
+	elif node is LineEdit:
+		var line_edit := node as LineEdit
+		line_edit.add_theme_font_size_override("font_size", LEFT_PANEL_INPUT_FONT_SIZE)
+	elif node is OptionButton:
+		var option := node as OptionButton
+		option.add_theme_font_size_override("font_size", LEFT_PANEL_INPUT_FONT_SIZE)
+	elif node is RichTextLabel:
+		var rich_text := node as RichTextLabel
+		rich_text.add_theme_font_size_override("normal_font_size", LEFT_PANEL_FONT_SIZE)
+	for child in node.get_children():
+		_apply_left_panel_readability_theme(child)
 
 func _labeled_control(label_text: String, control: Control) -> VBoxContainer:
 	var column := VBoxContainer.new()

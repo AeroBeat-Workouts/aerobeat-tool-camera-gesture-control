@@ -2,6 +2,15 @@ extends GutTest
 
 const TRACE_STORE_SCRIPT := preload("res://scripts/trace_capture_store.gd")
 
+class FakeCameraView:
+	extends Control
+
+	var start_stream_call_count := 0
+
+	func start_stream() -> bool:
+		start_stream_call_count += 1
+		return true
+
 func test_camera_gesture_testbed_scene_loads() -> void:
 	var scene := load("res://scenes/camera_gesture_testbed.tscn")
 	assert_true(scene != null, "Camera gesture testbed scene should be loadable")
@@ -10,10 +19,20 @@ func test_camera_gesture_testbed_scene_builds_harness_nodes() -> void:
 	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
 	var instance := packed_scene.instantiate()
 	add_child_autofree(instance)
-	assert_true(instance.get_node_or_null("RootSplit") != null, "Harness should build a root split layout")
+	var root_split := instance.get_node_or_null("RootSplit") as HSplitContainer
+	assert_true(root_split != null, "Harness should build a root split layout")
+	assert_eq(root_split.split_offset, 520, "Harness should widen the left panel for readability")
 	assert_true(instance.get_node_or_null("RootSplit/RightColumn/PreviewPanel") != null, "Harness should expose the right preview panel")
 	assert_true(instance.get_node_or_null("RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel") != null, "Harness should expose the bottom-left media inset")
 	assert_true(instance.get_node_or_null("RootSplit/RightColumn/DebugTabs") != null, "Harness should expose richer debug tabs")
+	var left_scroll := instance.get_node_or_null("RootSplit/LeftPanelScroll") as ScrollContainer
+	assert_true(left_scroll != null, "Harness should expose the left panel scroll container")
+	assert_eq(left_scroll.custom_minimum_size.x, 500.0, "Left panel minimum width should grow with the larger text")
+	var left_panel := instance.get_node_or_null("RootSplit/LeftPanelScroll/LeftPanel") as VBoxContainer
+	assert_true(left_panel != null, "Harness should expose the left panel container")
+	var title := left_panel.get_child(0) as Label
+	assert_true(title != null, "Harness should expose the scene title label")
+	assert_eq(title.get_theme_font_size("font_size"), 30, "Scene title should use the larger readability font")
 	var viewport := instance.get_node_or_null("RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/WorldPreviewViewportContainer/WorldPreviewViewport") as SubViewport
 	assert_true(viewport != null, "Harness should create the world preview viewport")
 	assert_eq(viewport.size, Vector2i(1920, 1080), "Harness viewport should target AeroBeat's default 1920x1080 surface")
@@ -64,3 +83,19 @@ func test_camera_gesture_testbed_exposes_split_source_modes_and_real_fixture_def
 	var fixture_sidecar_path_edit := instance.get("_fixture_sidecar_path_edit") as LineEdit
 	assert_true(fixture_video_path_edit.text.contains("head_rotate_left_repeat_04_take_01.mp4"), "Fixture default should point at a checked-in candidate video")
 	assert_true(fixture_sidecar_path_edit.text.contains("head_rotate_left_repeat_04_take_01.fixture.yaml"), "Fixture default should point at a checked-in candidate sidecar")
+
+func test_server_started_signal_does_not_start_camera_stream_before_stabilization_finishes() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	var camera_view := FakeCameraView.new()
+	camera_view.name = "FakeCameraView"
+	add_child_autofree(camera_view)
+	instance.set("_mediapipe_camera_view", camera_view)
+	instance.set("_source_mode", "mediapipe_replay")
+
+	instance.call("_on_mediapipe_server_started", 123)
+	await get_tree().process_frame
+
+	assert_eq(String(instance.get("_mediapipe_runtime_status")), "stabilizing", "Server-started signal should mark replay as stabilizing, not ready")
+	assert_eq(camera_view.start_stream_call_count, 0, "Server-started signal should not eagerly start the camera stream before stabilization completes")
