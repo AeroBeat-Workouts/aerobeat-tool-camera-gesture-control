@@ -277,6 +277,76 @@ Safe non-headless-MediaPipe validation only: verified from the mounted consumer 
 
 ---
 
+---
+
+### Task 11: Restore the addon-local runtime install flow and remove the bad mount workaround
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-5ez`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-03`  
+**Prompt:** Fix the replay-runtime regression the right way: use the addon/runtime install script or documented local runtime preparation flow so the gitignored Linux sidecar files are installed locally within the addon workflow, and undo the incorrect consumer-mount workaround if it changed the intended contract. Treat Derrick’s correction as source truth: the right fix is addon-local runtime install, not consumer mount strategy drift. Validate safely without violating the no-headless-MediaPipe rule, update this plan with actual results, commit/push by default in the owning repo(s), and close the bead only when the intended runtime-install path is restored honestly.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/`
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-input-mediapipe-python/`
+
+**Files Created/Deleted/Modified:**
+- `Addon/runtime install config or docs as needed`
+- `Consumer addon manifest refresh if needed`
+- `Repo-local tests / notes as needed`
+
+**Status:** ✅ Complete
+
+**Results:** Derrick’s correction was right: the durable source repos did not need a new consumer mount contract. The bad workaround was the `1987f4a` consumer manifest drift that changed `/.testbed/addons.jsonc` from the normal Git-sourced `aerobeat-input-mediapipe-python` addon to a local sibling-repo symlink. I restored the intended consumer contract by reverting that manifest entry back to `git@github.com:AeroBeat-Workouts/aerobeat-input-mediapipe-python.git` on `main`, then refreshed the consumer cleanly with `cd .testbed && rm -rf addons/aerobeat-input-mediapipe-python .addons/aerobeat-input-mediapipe-python && godotenv addons install`.
+
+The real repair used the addon’s existing documented local runtime-preparation flow, not new source changes in the addon repo: from the installed addon path at `/.testbed/addons/aerobeat-input-mediapipe-python/`, I ran `python3 python_mediapipe/prepare_runtime.py --platform linux-x64 --mode dev --install-requirements --validate --json`. That created the mounted addon-local Linux runtime in `python_mediapipe/assets/runtimes/linux-x64/` with a ready manifest, sentinel, and `venv/bin/python`, all inside the addon workflow where the replay path expects them. Validation stayed non-headless-MediaPipe: the prep command returned `validation_status: "ready"` with zero validation errors, the mounted runtime files now exist under the consumer addon path, and the mounted runtime interpreter successfully imported `mediapipe`, `cv2`, and `numpy`.
+
+Important truth boundary: no durable source edit was needed in `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-input-mediapipe-python`; the correct fix there was to use the already-documented runtime prep flow honestly. The only durable code/config change in this slice was undoing the incorrect consumer workaround so the intended contract is restored. GUI replay itself is still unclaimed here; Task 12 still owns the real editor verification.
+
+---
+
+### Task 12: Verify replay boot after restoring addon-local runtime install
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-k1y`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-03`, `REF-04`  
+**Prompt:** Verify in the real Godot editor that recorded-video replay boots after the addon-local runtime install flow is restored. Confirm whether the `status: 3` failure is gone, whether runtime state becomes healthy, and whether replay actually starts. Preserve the Godot-safe start/stop/close rules, gather evidence, update this plan with actual results, and close the bead only when the result is truthful.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/`
+- `Potential screenshot/export evidence folders`
+
+**Files Created/Deleted/Modified:**
+- `Potential screenshots / trace exports / notes`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 13: Audit the addon-local runtime install restoration
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-6vt`  
+**SubAgent:** `primary`  
+**Role:** `auditor`  
+**References:** `REF-02`, `REF-03`  
+**Prompt:** Independently audit the restored addon-local runtime install flow and replay follow-up. Verify whether the regression is genuinely fixed or honestly narrowed further, and record the exact remaining blocker if replay still fails. Update this plan with the verdict and close the bead only when the truth is clear.
+
+**Folders Created/Deleted/Modified:**
+- `None planned`
+
+**Files Created/Deleted/Modified:**
+- `Plan update / evidence references only`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
 ## Final Results
 
 **Status:** ⚠️ Partial
@@ -288,7 +358,7 @@ Safe non-headless-MediaPipe validation only: verified from the mounted consumer 
 **Commits:**
 - No new auditor commit; audited current working tree state and evidence only.
 
-**Lessons Learned:** The safe-close improvement is worth keeping, but it does not remove the need for the normal GUI stop path because the current manager intentionally does not arm in windowed editor sessions. Also, the camera-gesture lane now has trace-export scaffolding ready, but any claim about forward/backward `translation.z` polarity must wait for a real exported trace from live or replay mode rather than screenshots or assumptions alone. The follow-up replay QA also proved that source-side timing was not the only blocker: Linux sidecar runtime provisioning inside the mounted `aerobeat-input-mediapipe-python` addon path must be correct before replay can ever become healthy.
+**Lessons Learned:** The safe-close improvement is worth keeping, but it does not remove the need for the normal GUI stop path because the current manager intentionally does not arm in windowed editor sessions. Also, the camera-gesture lane now has trace-export scaffolding ready, but any claim about forward/backward `translation.z` polarity must wait for a real exported trace from live or replay mode rather than screenshots or assumptions alone. The follow-up replay QA also proved that source-side timing was not the only blocker: Linux sidecar runtime provisioning inside the mounted `aerobeat-input-mediapipe-python` addon path must be correct before replay can ever become healthy. Derrick then corrected the intended fix path explicitly: the right repair is to run the addon/runtime install script locally so the gitignored runtime files are present inside the addon workflow, not to change the consumer mount strategy as the primary solution.
 
 ---
 

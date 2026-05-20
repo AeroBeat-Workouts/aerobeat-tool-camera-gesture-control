@@ -14,10 +14,9 @@
       "subfolder": "/"
     },
     // MediaPipe desktop camera source used only behind the hidden proving testbed.
-    // Use the local sibling repo in dev so the mounted addon sees the prepared, gitignored runtime state.
     "aerobeat-input-mediapipe-python": {
-      "url": "../../aerobeat-input-mediapipe-python",
-      "source": "symlink",
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-input-mediapipe-python.git",
+      "checkout": "main",
       "subfolder": "/"
     },
     // Dev-only headless quit listener used for approved headless runs.
