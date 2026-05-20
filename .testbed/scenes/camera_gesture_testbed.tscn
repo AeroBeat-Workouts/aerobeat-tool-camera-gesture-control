@@ -323,7 +323,16 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 metadata/_tab_index = 0
 
-[node name="RuntimeDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Runtime" unique_id=786681256]
+[node name="RuntimeMargin" type="MarginContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Runtime" unique_id=746830115]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="RuntimeDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Runtime/RuntimeMargin" unique_id=786681256]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -336,7 +345,16 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 metadata/_tab_index = 1
 
-[node name="TraceDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Trace" unique_id=319371739]
+[node name="TraceMargin" type="MarginContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Trace" unique_id=687481201]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="TraceDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Trace/TraceMargin" unique_id=319371739]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -349,7 +367,16 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 metadata/_tab_index = 2
 
-[node name="FixtureDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Fixture" unique_id=259252204]
+[node name="FixtureMargin" type="MarginContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Fixture" unique_id=698289968]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="FixtureDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Fixture/FixtureMargin" unique_id=259252204]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
@@ -362,7 +389,16 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 metadata/_tab_index = 3
 
-[node name="ProviderDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Provider" unique_id=937099289]
+[node name="ProviderMargin" type="MarginContainer" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Provider" unique_id=1017595680]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="ProviderDebugLabel" type="RichTextLabel" parent="RootMargin/RootSplit/RightColumn/DebugTabs/Provider/ProviderMargin" unique_id=937099289]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3

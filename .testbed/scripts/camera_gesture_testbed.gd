@@ -211,10 +211,10 @@ func _bind_layout_nodes() -> void:
 
 	var debug_tabs := get_node("RootMargin/RootSplit/RightColumn/DebugTabs") as TabContainer
 	debug_tabs.custom_minimum_size = Vector2(0.0, DEBUG_TABS_MIN_HEIGHT)
-	_runtime_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Runtime/RuntimeDebugLabel") as RichTextLabel
-	_trace_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Trace/TraceDebugLabel") as RichTextLabel
-	_fixture_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Fixture/FixtureDebugLabel") as RichTextLabel
-	_provider_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Provider/ProviderDebugLabel") as RichTextLabel
+	_runtime_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Runtime/RuntimeMargin/RuntimeDebugLabel") as RichTextLabel
+	_trace_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Trace/TraceMargin/TraceDebugLabel") as RichTextLabel
+	_fixture_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Fixture/FixtureMargin/FixtureDebugLabel") as RichTextLabel
+	_provider_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Provider/ProviderMargin/ProviderDebugLabel") as RichTextLabel
 
 func _populate_layout_controls() -> void:
 	_profile_section_content.get_node("SectionTitleLabel").add_theme_font_size_override("font_size", SECTION_TITLE_FONT_SIZE)

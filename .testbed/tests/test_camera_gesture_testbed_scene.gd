@@ -30,6 +30,12 @@ func test_camera_gesture_testbed_scene_builds_harness_nodes() -> void:
 	var debug_tabs := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/DebugTabs") as TabContainer
 	assert_true(debug_tabs != null, "Harness should expose richer debug tabs")
 	assert_eq(debug_tabs.custom_minimum_size.y, 180.0, "Debug tabs should leave more vertical room for the world preview")
+	var runtime_margin := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/DebugTabs/Runtime/RuntimeMargin") as MarginContainer
+	assert_true(runtime_margin != null, "Runtime tab should wrap the debug surface in a scene-authored margin container")
+	assert_eq(runtime_margin.get_theme_constant("margin_left"), 12, "Debug tab margins should match the left-panel section inset")
+	assert_eq(runtime_margin.get_theme_constant("margin_top"), 10, "Debug tab margins should match the left-panel section inset")
+	assert_eq(runtime_margin.get_theme_constant("margin_right"), 12, "Debug tab margins should match the left-panel section inset")
+	assert_eq(runtime_margin.get_theme_constant("margin_bottom"), 12, "Debug tab margins should match the left-panel section inset")
 	var left_scroll := instance.get_node_or_null("RootMargin/RootSplit/LeftPanelScroll") as ScrollContainer
 	assert_true(left_scroll != null, "Harness should expose the left panel scroll container")
 	assert_eq(left_scroll.custom_minimum_size.x, 340.0, "Left panel minimum width should stay readable without forcing controls off-screen")

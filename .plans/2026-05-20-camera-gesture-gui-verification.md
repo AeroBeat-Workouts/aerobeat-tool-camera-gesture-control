@@ -440,6 +440,32 @@ Safe validation stayed within Derrick’s no-headless-MediaPipe rule: `~/.local/
 
 ---
 
+---
+
+### Task 18: Add direct scene margins around debug-tab text surfaces
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-64j`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-02`  
+**Prompt:** Add margin around the bottom-right debug-tab text surfaces directly in the scene hierarchy rather than procedurally. Follow the same direction Derrick is already taking with manual hierarchy edits: wrap the debug-tab `RichTextLabel` surfaces in scene-authored `MarginContainer` nodes so the text has inset spacing similar to the left sidebar sections. Keep the change narrow, respect any recent manual hierarchy tweaks already present, validate safely, update this plan with actual results, commit/push by default, and close the bead only when the direct scene margin change is real.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/`
+
+**Files Created/Deleted/Modified:**
+- `/.testbed/scenes/camera_gesture_testbed.tscn`
+- `/.testbed/scripts/camera_gesture_testbed.gd`
+- `/.testbed/tests/test_camera_gesture_testbed_scene.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Landed the margin change directly in the scene hierarchy, keeping the scope narrow and aligned with Derrick’s manual scene-first direction. Each debug tab under `RootMargin/RootSplit/RightColumn/DebugTabs` now wraps its `RichTextLabel` in a scene-authored `MarginContainer`: `Runtime/RuntimeMargin/RuntimeDebugLabel`, `Trace/TraceMargin/TraceDebugLabel`, `Fixture/FixtureMargin/FixtureDebugLabel`, and `Provider/ProviderMargin/ProviderDebugLabel`. Each wrapper uses the same inset constants already used by the left sidebar sections (`left=12`, `top=10`, `right=12`, `bottom=12`), so the bottom-right debug text surfaces now have matching padding without adding new procedural layout code.
+
+Because the wrapper nodes change the label paths, `/.testbed/scripts/camera_gesture_testbed.gd` was updated minimally to bind the four debug labels through the new margin containers, and the scene-layout GUT test now asserts that the runtime tab margin container exists with the expected inset values. Safe validation stayed repo-local and non-destructive: `~/.local/bin/godot --headless --path .testbed --check-only --script scripts/camera_gesture_testbed.gd` passed, and `~/.local/bin/godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_camera_gesture_testbed_scene.gd -gexit` passed `6/6`.
+
+---
+
 ## Final Results
 
 **Status:** ⚠️ Partial
