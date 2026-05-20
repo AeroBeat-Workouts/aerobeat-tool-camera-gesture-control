@@ -348,12 +348,12 @@ func _build_rotation_from_vector(sample: Vector3) -> Vector3:
 	var centered := _apply_deadzone_and_center(sample)
 	var invert_x := -1.0 if bool(_profile.get("invert_x", false)) else 1.0
 	var invert_y := -1.0 if bool(_profile.get("invert_y", false)) else 1.0
-	var rotation := Vector3(
+	var rotation_vector := Vector3(
 		deg_to_rad(-centered.y * float(_profile.get("max_pitch_degrees", 12.0)) * float(_profile.get("look_sensitivity_y", 1.0)) * invert_y),
 		deg_to_rad(-centered.x * float(_profile.get("max_yaw_degrees", 20.0)) * float(_profile.get("look_sensitivity_x", 1.0)) * invert_x),
 		deg_to_rad(centered.x * float(_profile.get("max_roll_degrees", 4.0)) * invert_x)
 	)
-	return _clamp_rotation(rotation)
+	return _clamp_rotation(rotation_vector)
 
 func _apply_deadzone_and_center(sample: Vector3) -> Vector3:
 	var centered := sample

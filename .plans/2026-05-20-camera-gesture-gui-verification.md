@@ -347,6 +347,73 @@ Important truth boundary: no durable source edit was needed in `/home/derrick/.o
 
 ---
 
+---
+
+### Task 14: Fix open warnings, restore usable testbed layout, and re-debug live/replay startup
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-b0b`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-01`, `REF-02`, `REF-03`  
+**Prompt:** Fix the newly reported regressions in the camera-gesture testbed. Address the project-open warnings shown in Derrick’s screenshot, repair the test-scene layout so the UI remains readable without hiding critical controls/previews (including the world preview and tracking/minimap preview texture), and continue debugging the remaining live/replay startup failure that still hits `camera_view.gd:205 @ _connect_with_retry(): Failed to connect, status: 3`. Treat Derrick’s manual report and screenshots as source truth, validate safely without violating the no-headless-MediaPipe rule, update this plan with actual results, commit/push by default, and close the bead only when the source-side fixes are real.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/`
+
+**Files Created/Deleted/Modified:**
+- `Scene/layout scripts and resources as needed`
+- `Runtime/startup scripts as needed`
+- `Repo-local tests as needed`
+
+**Status:** ✅ Complete
+
+**Results:** Fixed the newly reported source-side regressions without overclaiming GUI runtime success. The project-open warnings were caused by local variable names shadowing `Control` / `CanvasItem` members (`position`, `rotation`, `material`) in the rebuilt harness scripts; those were renamed in `tracking_inset_overlay.gd`, `camera_gesture_testbed.gd`, and the controller helper. The readability regression came from overcorrecting the left-column expansion and preview sizing: the previous pass forced a `520` split with a `500px` minimum left panel, kept the preview stack demanding full-HD minimum layout space, left the debug tabs too tall, and parked the media inset on top of the main preview. The layout is now rebalanced to keep the larger fonts but restore usable surfaces: left split `440`, left minimum width `420`, preview stack minimum `960×540`, debug tabs reduced to `220px`, and the tracking/media inset moved to the bottom-right with explicit `TextureRect` expand/stretch settings so the preview texture stays visible.
+
+I also narrowed the remaining `camera_view.gd:205 ... Failed to connect, status: 3` failure to a real source-side addon bug plus a local runtime-state prerequisite. In `aerobeat-input-mediapipe-python/src/runtime/desktop_sidecar_runtime.gd`, runtime validation was resolving `model_assets[].relative_path` against `res://../...` (consumer project root) instead of the mounted addon package root, which falsely reported the required pose-landmarker assets as missing and blocked startup before the stream could ever become healthy. The durable fix now resolves those model assets through `resolve_package_path(owner_script_path, relative_path)`. Safe validation stayed inside Derrick’s rule set: `~/.local/bin/godot --headless --path .testbed --check-only --script scripts/camera_gesture_testbed.gd` passed, `~/.local/bin/godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_camera_gesture_testbed_scene.gd -gexit` passed `6/6`, and a direct non-scene runtime-contract probe against the mounted addon now returns `{"valid":true}` after restoring the documented addon-local Linux runtime with `python3 python_mediapipe/prepare_runtime.py --platform linux-x64 --mode dev --install-requirements --validate --json`. Important truth boundary: this coder slice fixes the warning/layout regressions and removes the false "missing model asset" startup blocker in source, but it does **not** itself prove that real GUI live/replay no longer hit `status: 3`; Task 15 remains the required manual QA proof.
+
+---
+
+### Task 15: Verify the repaired layout and live/replay behavior in the real editor
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-8kh`  
+**SubAgent:** `Manual / Derrick`  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-03`, `REF-04`  
+**Prompt:** Derrick will verify in the real Godot editor that the camera-gesture testbed layout is usable again and that critical surfaces are visible on-screen, including the world preview and the tracking/minimap preview texture. Derrick will also verify whether live/replay still hit `status: 3` or now boot correctly, using the existing Godot-safe start/stop/close rules.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/`
+- `Potential screenshot/export evidence folders`
+
+**Files Created/Deleted/Modified:**
+- `Potential screenshots / notes / trace exports`
+
+**Status:** ⏸️ Deferred to Derrick
+
+**Results:** QA intentionally skipped by request; Derrick will handle this phase manually.
+
+---
+
+### Task 16: Audit the warning/layout/runtime follow-up
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-sh9`  
+**SubAgent:** `Manual / Derrick`  
+**Role:** `auditor`  
+**References:** `REF-01`, `REF-02`, `REF-03`  
+**Prompt:** Derrick will handle the final truth check on the warning/layout/runtime follow-up after manual verification.
+
+**Folders Created/Deleted/Modified:**
+- `None planned`
+
+**Files Created/Deleted/Modified:**
+- `Plan update / evidence references only`
+
+**Status:** ⏸️ Deferred to Derrick
+
+**Results:** Audit intentionally skipped by request; Derrick will handle this phase manually.
+
+---
+
 ## Final Results
 
 **Status:** ⚠️ Partial
@@ -358,7 +425,7 @@ Important truth boundary: no durable source edit was needed in `/home/derrick/.o
 **Commits:**
 - No new auditor commit; audited current working tree state and evidence only.
 
-**Lessons Learned:** The safe-close improvement is worth keeping, but it does not remove the need for the normal GUI stop path because the current manager intentionally does not arm in windowed editor sessions. Also, the camera-gesture lane now has trace-export scaffolding ready, but any claim about forward/backward `translation.z` polarity must wait for a real exported trace from live or replay mode rather than screenshots or assumptions alone. The follow-up replay QA also proved that source-side timing was not the only blocker: Linux sidecar runtime provisioning inside the mounted `aerobeat-input-mediapipe-python` addon path must be correct before replay can ever become healthy. Derrick then corrected the intended fix path explicitly: the right repair is to run the addon/runtime install script locally so the gitignored runtime files are present inside the addon workflow, not to change the consumer mount strategy as the primary solution.
+**Lessons Learned:** The safe-close improvement is worth keeping, but it does not remove the need for the normal GUI stop path because the current manager intentionally does not arm in windowed editor sessions. Also, the camera-gesture lane now has trace-export scaffolding ready, but any claim about forward/backward `translation.z` polarity must wait for a real exported trace from live or replay mode rather than screenshots or assumptions alone. The follow-up replay QA also proved that source-side timing was not the only blocker: Linux sidecar runtime provisioning inside the mounted `aerobeat-input-mediapipe-python` addon path must be correct before replay can ever become healthy. Derrick then corrected the intended fix path explicitly: the right repair is to run the addon/runtime install script locally so the gitignored runtime files are present inside the addon workflow, not to change the consumer mount strategy as the primary solution. The next manual regression report added three more truths: project-open warnings are still present, the enlarged UI pass regressed usability by hiding important controls/previews off-screen and crowding out the world preview, and both live/replay still reproduce `camera_view.gd:205 @ _connect_with_retry(): Failed to connect, status: 3`.
 
 ---
 

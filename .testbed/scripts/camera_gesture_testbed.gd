@@ -17,8 +17,13 @@ const MEDIAPIPE_AUTOSTART_MANAGER_PATH := "res://addons/aerobeat-input-mediapipe
 const PROVIDER_SESSION_REGISTRY_PATH := "res://addons/aerobeat-input-core/src/runtime/provider_session_registry.gd"
 const DEFAULT_MEDIAPIPE_STREAM_URL := "http://127.0.0.1:4243/camera"
 const DEFAULT_TESTBED_VIEWPORT_SIZE := Vector2i(1920, 1080)
-const LEFT_PANEL_SPLIT_OFFSET := 520
-const LEFT_PANEL_MIN_WIDTH := 500
+const PREVIEW_STACK_MIN_SIZE := Vector2(960.0, 540.0)
+const LEFT_PANEL_SPLIT_OFFSET := 440
+const LEFT_PANEL_MIN_WIDTH := 420
+const MEDIA_INSET_WIDTH := 336.0
+const MEDIA_INSET_HEIGHT := 214.0
+const CAMERA_FEED_MIN_HEIGHT := 158.0
+const DEBUG_TABS_MIN_HEIGHT := 220.0
 const LEFT_PANEL_FONT_SIZE := 17
 const LEFT_PANEL_INPUT_FONT_SIZE := 16
 const STATUS_LABEL_FONT_SIZE := 18
@@ -329,7 +334,7 @@ func _build_layout() -> void:
 
 	var preview_stack := Control.new()
 	preview_stack.name = "PreviewStack"
-	preview_stack.custom_minimum_size = Vector2(DEFAULT_TESTBED_VIEWPORT_SIZE.x, DEFAULT_TESTBED_VIEWPORT_SIZE.y)
+	preview_stack.custom_minimum_size = PREVIEW_STACK_MIN_SIZE
 	preview_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	preview_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	preview_margin.add_child(preview_stack)
@@ -368,13 +373,13 @@ func _build_layout() -> void:
 
 	var media_panel := PanelContainer.new()
 	media_panel.name = "MediaInsetPanel"
-	media_panel.anchor_left = 0.0
+	media_panel.anchor_left = 1.0
 	media_panel.anchor_top = 1.0
-	media_panel.anchor_right = 0.0
+	media_panel.anchor_right = 1.0
 	media_panel.anchor_bottom = 1.0
-	media_panel.offset_left = 16.0
-	media_panel.offset_top = -272.0
-	media_panel.offset_right = 390.0
+	media_panel.offset_left = -MEDIA_INSET_WIDTH - 16.0
+	media_panel.offset_top = -MEDIA_INSET_HEIGHT - 16.0
+	media_panel.offset_right = -16.0
 	media_panel.offset_bottom = -16.0
 	preview_stack.add_child(media_panel)
 
@@ -390,7 +395,7 @@ func _build_layout() -> void:
 
 	_camera_feed_host = Control.new()
 	_camera_feed_host.name = "CameraFeedHost"
-	_camera_feed_host.custom_minimum_size = Vector2(0, 180)
+	_camera_feed_host.custom_minimum_size = Vector2(0, CAMERA_FEED_MIN_HEIGHT)
 	_camera_feed_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_camera_feed_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	media_column.add_child(_camera_feed_host)
@@ -424,7 +429,7 @@ func _build_layout() -> void:
 
 	var debug_tabs := TabContainer.new()
 	debug_tabs.name = "DebugTabs"
-	debug_tabs.custom_minimum_size = Vector2(0, 280)
+	debug_tabs.custom_minimum_size = Vector2(0, DEBUG_TABS_MIN_HEIGHT)
 	debug_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	debug_tabs.size_flags_vertical = Control.SIZE_FILL
 	right_column.add_child(debug_tabs)
@@ -490,9 +495,9 @@ func _build_world() -> void:
 		mesh.mesh = CylinderMesh.new()
 		mesh.position = config.get("position", Vector3.ZERO)
 		mesh.scale = config.get("scale", Vector3.ONE)
-		var material := StandardMaterial3D.new()
-		material.albedo_color = config.get("color", Color.WHITE)
-		mesh.material_override = material
+		var marker_material := StandardMaterial3D.new()
+		marker_material.albedo_color = config.get("color", Color.WHITE)
+		mesh.material_override = marker_material
 		_world_root.add_child(mesh)
 		_animated_world_markers.append({
 			"node": mesh,
@@ -1093,9 +1098,9 @@ func _collect_source_snapshot() -> Dictionary:
 	if _current_input_source != null and _current_input_source.has_method("get_head_velocity"):
 		snapshot["head_velocity"] = _coerce_vector3(_current_input_source.get_head_velocity())
 	if _current_input_source != null and _current_input_source.has_method("get_head_rotation"):
-		var rotation: Variant = _current_input_source.get_head_rotation()
-		if rotation is Quaternion:
-			snapshot["head_rotation_euler"] = (rotation as Quaternion).get_euler()
+		var head_rotation: Variant = _current_input_source.get_head_rotation()
+		if head_rotation is Quaternion:
+			snapshot["head_rotation_euler"] = (head_rotation as Quaternion).get_euler()
 	if _current_input_source == _fake_input_source and _fake_input_source != null:
 		snapshot["fake_animate"] = _fake_input_source.animate
 		snapshot["fake_animation_speed"] = _fake_input_source.animation_speed
@@ -1391,6 +1396,8 @@ func _ensure_mediapipe_camera_view_if_possible() -> void:
 	_mediapipe_camera_view = camera_view_script.new()
 	_mediapipe_camera_view.name = "MediaPipeCameraView"
 	_mediapipe_camera_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_mediapipe_camera_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_mediapipe_camera_view.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_mediapipe_camera_view.stream_url = DEFAULT_MEDIAPIPE_STREAM_URL
 	_mediapipe_camera_view.show_overlay = true
 	_camera_feed_host.add_child(_mediapipe_camera_view)

@@ -83,8 +83,8 @@ func _draw_motion(rect: Rect2) -> void:
 func _extract_normalized_position(snapshot: Dictionary) -> Vector2:
 	var raw: Variant = snapshot.get("head_position", null)
 	if raw is Vector3:
-		var position: Vector3 = raw
-		return Vector2(clampf(position.x, 0.0, 1.0), clampf(position.y, 0.0, 1.0))
+		var raw_position: Vector3 = raw
+		return Vector2(clampf(raw_position.x, 0.0, 1.0), clampf(raw_position.y, 0.0, 1.0))
 	if raw is Dictionary:
 		return Vector2(clampf(float(raw.get("x", 0.5)), 0.0, 1.0), clampf(float(raw.get("y", 0.5)), 0.0, 1.0))
 	return Vector2(-1.0, -1.0)
