@@ -25,6 +25,9 @@ const MEDIA_INSET_HEIGHT := 296.0
 const CAMERA_FEED_MIN_HEIGHT := 236.0
 const DEBUG_TABS_MIN_HEIGHT := 180.0
 const PREVIEW_CORNER_MARGIN := 20.0
+const MEDIA_INSET_COLLAPSED_HEIGHT := 52.0
+const TOGGLE_GLYPH_EXPANDED := "▾"
+const TOGGLE_GLYPH_COLLAPSED := "▸"
 const LEFT_PANEL_FONT_SIZE := 15
 const LEFT_PANEL_INPUT_FONT_SIZE := 14
 const STATUS_LABEL_FONT_SIZE := 16
@@ -72,6 +75,9 @@ var _media_placeholder_label: Label
 var _tracking_overlay: CameraGestureTrackingInsetOverlay
 var _camera_feed_host: Control
 var _media_inset_placeholder: ColorRect
+var _media_inset_panel: PanelContainer
+var _media_title_label: Label
+var _media_inset_toggle_button: Button
 var _field_refs := {}
 var _fake_controls := {}
 var _current_input_source: Node = null
@@ -196,15 +202,17 @@ func _bind_layout_nodes() -> void:
 	_preview_title_label.add_theme_font_size_override("font_size", PREVIEW_TITLE_FONT_SIZE)
 	_preview_stats_label = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/OverlayTop/PreviewStatsLabel") as RichTextLabel
 
-	var media_panel := get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel") as PanelContainer
-	media_panel.offset_left = -MEDIA_INSET_WIDTH - PREVIEW_CORNER_MARGIN
-	media_panel.offset_top = -MEDIA_INSET_HEIGHT - PREVIEW_CORNER_MARGIN
-	media_panel.offset_right = -PREVIEW_CORNER_MARGIN
-	media_panel.offset_bottom = -PREVIEW_CORNER_MARGIN
+	_media_inset_panel = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel") as PanelContainer
+	_media_inset_panel.offset_left = -MEDIA_INSET_WIDTH - PREVIEW_CORNER_MARGIN
+	_media_inset_panel.offset_top = -MEDIA_INSET_HEIGHT - PREVIEW_CORNER_MARGIN
+	_media_inset_panel.offset_right = -PREVIEW_CORNER_MARGIN
+	_media_inset_panel.offset_bottom = -PREVIEW_CORNER_MARGIN
 
-	var media_title := get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/MediaTitleLabel") as Label
-	media_title.visible = true
-	media_title.add_theme_font_size_override("font_size", MEDIA_TITLE_FONT_SIZE)
+	_media_title_label = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/MediaToolbar/MediaTitleLabel") as Label
+	_media_title_label.visible = true
+	_media_title_label.add_theme_font_size_override("font_size", MEDIA_TITLE_FONT_SIZE)
+	_media_inset_toggle_button = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/MediaToolbar/MediaInsetToggleButton") as Button
+	_media_inset_toggle_button.toggled.connect(_on_media_inset_toggle_toggled)
 
 	_camera_feed_host = get_node("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost") as Control
 	_camera_feed_host.custom_minimum_size = Vector2(0.0, CAMERA_FEED_MIN_HEIGHT)
@@ -223,6 +231,7 @@ func _bind_layout_nodes() -> void:
 	_trace_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Trace/TraceMargin/TraceDebugLabel") as RichTextLabel
 	_fixture_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Fixture/FixtureMargin/FixtureDebugLabel") as RichTextLabel
 	_provider_debug_label = get_node("RootMargin/RootSplit/RightColumn/DebugTabs/Provider/ProviderMargin/ProviderDebugLabel") as RichTextLabel
+	_apply_media_inset_visibility(_media_inset_toggle_button.button_pressed)
 	_apply_debug_tabs_visibility(_debug_tabs_toggle_button.button_pressed)
 
 func _populate_layout_controls() -> void:
@@ -1531,6 +1540,25 @@ func _on_fake_control_changed() -> void:
 func _on_source_mode_selected() -> void:
 	_switch_input_source(_get_option_value(_source_option))
 
+func _on_media_inset_toggle_toggled(pressed: bool) -> void:
+	_apply_media_inset_visibility(pressed)
+
+func _apply_media_inset_visibility(media_inset_visible: bool) -> void:
+	if _camera_feed_host != null:
+		_camera_feed_host.visible = media_inset_visible
+	if _media_inset_status_label != null:
+		_media_inset_status_label.visible = media_inset_visible
+	if _media_inset_panel != null:
+		var target_height := MEDIA_INSET_HEIGHT if media_inset_visible else MEDIA_INSET_COLLAPSED_HEIGHT
+		_media_inset_panel.offset_left = -MEDIA_INSET_WIDTH - PREVIEW_CORNER_MARGIN
+		_media_inset_panel.offset_top = -target_height - PREVIEW_CORNER_MARGIN
+		_media_inset_panel.offset_right = -PREVIEW_CORNER_MARGIN
+		_media_inset_panel.offset_bottom = -PREVIEW_CORNER_MARGIN
+	if _media_inset_toggle_button != null:
+		_media_inset_toggle_button.text = TOGGLE_GLYPH_EXPANDED if media_inset_visible else TOGGLE_GLYPH_COLLAPSED
+		_media_inset_toggle_button.tooltip_text = "Collapse media preview" if media_inset_visible else "Restore media preview"
+	_update_status("Media preview %s" % ("shown" if media_inset_visible else "collapsed"))
+
 func _on_debug_tabs_toggle_toggled(pressed: bool) -> void:
 	_apply_debug_tabs_visibility(pressed)
 
@@ -1538,7 +1566,8 @@ func _apply_debug_tabs_visibility(debug_tabs_visible: bool) -> void:
 	if _debug_tabs != null:
 		_debug_tabs.visible = debug_tabs_visible
 	if _debug_tabs_toggle_button != null:
-		_debug_tabs_toggle_button.text = "Hide debug tabs" if debug_tabs_visible else "Show debug tabs"
+		_debug_tabs_toggle_button.text = TOGGLE_GLYPH_EXPANDED if debug_tabs_visible else TOGGLE_GLYPH_COLLAPSED
+		_debug_tabs_toggle_button.tooltip_text = "Collapse debug tabs" if debug_tabs_visible else "Restore debug tabs"
 	_update_status("Debug tabs %s" % ("shown" if debug_tabs_visible else "hidden"))
 
 func _on_controller_mode_changed(mode: String) -> void:

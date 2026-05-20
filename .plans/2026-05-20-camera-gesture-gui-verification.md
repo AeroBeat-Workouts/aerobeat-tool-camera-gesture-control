@@ -522,6 +522,34 @@ The media/tracking preview was also enlarged substantially while staying anchore
 
 ---
 
+---
+
+### Task 21: Fix recorded-video switch compile error and add matching minimize/restore controls
+
+**Bead ID:** `aerobeat-tool-camera-gesture-control-ee8`
+**SubAgent:** `primary`
+**Role:** `coder`
+**References:** `REF-02`, `REF-03`
+**Prompt:** Fix the newly observed recorded-video switch error and continue the diagnostic UI polish. Treat Derrick’s manual report and screenshot as source truth: switching to recorded video currently exposes a compile-time error in `input_provider.gd` (`Cannot infer the type of \"ok\" variable because the value doesn't have a set type.`), and Derrick wants matching minimize/restore icon controls for both the enlarged video preview area and the debug-tab area. Use icon-style minimize/restore affordances rather than plain text buttons where practical, keep the UI scene-first, and preserve Derrick-handled manual QA for this session. Validate safely without violating the no-headless-MediaPipe rule, update this plan with actual results, commit/push by default, and close the bead only when the source-side fixes are real.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/`
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-input-mediapipe-python/src/`
+
+**Files Created/Deleted/Modified:**
+- `/.testbed/scenes/camera_gesture_testbed.tscn`
+- `/.testbed/scripts/camera_gesture_testbed.gd`
+- `/.testbed/tests/test_camera_gesture_testbed_scene.gd`
+- `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-input-mediapipe-python/src/input_provider.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Fixed the recorded-video switch compile blocker in the owning MediaPipe addon source instead of the mounted consumer mirror. In `/home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-input-mediapipe-python/src/input_provider.gd`, `set_selected_camera_device_id()` now declares `ok` as an explicit `bool` and casts the provider return before returning it, which removes the typed-GDScript inference failure Derrick hit when switching to recorded video. While validating that source directly, I also fixed a second real parser blocker in the same adapter by declaring the emitted `camera_devices_changed(devices, selected_device_id)` signal on the addon-facing surface.
+
+The diagnostic UI polish stayed scene-first in the camera-gesture testbed. `/.testbed/scenes/camera_gesture_testbed.tscn` now defines matching icon-style collapse/restore controls (`▾` expanded, `▸` collapsed) for both the media preview inset and the debug-tab area. `camera_gesture_testbed.gd` binds those scene-authored toggles, preserves the existing bottom-right anchoring, collapses the media preview down to a compact title-bar state while hiding the feed/status body, and keeps the debug area as toolbar-only when collapsed. `test_camera_gesture_testbed_scene.gd` was expanded to assert the new scene nodes and both collapse/restore behaviors. Safe validation stayed within Derrick’s no-headless-MediaPipe rule: `~/.local/bin/godot --headless --path .testbed --check-only --script addons/aerobeat-input-mediapipe-python/src/input_provider.gd`, `~/.local/bin/godot --headless --path .testbed --check-only --script scripts/camera_gesture_testbed.gd`, `~/.local/bin/godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_camera_gesture_testbed_scene.gd -gexit` (`9/9` passed), and `git diff --check` in both owning repos.
+
+---
+
 ## Final Results
 
 **Status:** ⚠️ Partial

@@ -25,19 +25,22 @@ func test_camera_gesture_testbed_scene_builds_harness_nodes() -> void:
 	assert_true(instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel") != null, "Harness should expose the right preview panel")
 	var media_inset := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel") as PanelContainer
 	assert_true(media_inset != null, "Harness should expose the preview inset panel")
+	var media_toggle := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/MediaToolbar/MediaInsetToggleButton") as Button
+	assert_true(media_toggle != null, "Harness should expose a matching minimize/restore control for the media preview")
+	assert_eq(media_toggle.text, "▾", "Media preview should default to the expanded icon state")
 	assert_eq(media_inset.anchor_left, 1.0, "Preview inset should stay anchored to the bottom-right corner for live/replay comparison")
 	assert_eq(media_inset.anchor_right, 1.0, "Preview inset should stay anchored to the bottom-right corner for live/replay comparison")
 	assert_eq(media_inset.anchor_top, 1.0, "Preview inset should stay anchored to the bottom-right corner for live/replay comparison")
 	assert_eq(media_inset.anchor_bottom, 1.0, "Preview inset should stay anchored to the bottom-right corner for live/replay comparison")
 	assert_eq(media_inset.offset_right, -20.0, "Preview inset should keep a visible right margin from the preview edge")
 	assert_eq(media_inset.offset_bottom, -20.0, "Preview inset should keep a visible bottom margin from the preview edge")
-	assert_eq(media_inset.size.x, 416.0, "Preview inset should be substantially larger for replay/live dot comparison")
-	assert_eq(media_inset.size.y, 296.0, "Preview inset should be substantially larger for replay/live dot comparison")
+	assert_eq(media_inset.offset_left, -436.0, "Preview inset should reserve a substantially larger width for replay/live dot comparison")
+	assert_eq(media_inset.offset_top, -316.0, "Preview inset should reserve a substantially larger height for replay/live dot comparison")
 	var debug_toolbar := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/DebugToolbar") as HBoxContainer
 	assert_true(debug_toolbar != null, "Harness should expose a dedicated debug toolbar for collapsing the tab area")
 	var debug_tabs_toggle := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/DebugToolbar/DebugTabsToggleButton") as Button
 	assert_true(debug_tabs_toggle != null, "Harness should expose a clear hide/show control for the debug tabs")
-	assert_eq(debug_tabs_toggle.text, "Hide debug tabs", "Debug toolbar should default to the expanded diagnostic state")
+	assert_eq(debug_tabs_toggle.text, "▾", "Debug toolbar should default to the expanded icon state")
 	var debug_tabs := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/DebugTabs") as TabContainer
 	assert_true(debug_tabs != null, "Harness should expose richer debug tabs")
 	assert_eq(debug_tabs.custom_minimum_size.y, 180.0, "Debug tabs should leave more vertical room for the world preview")
@@ -128,11 +131,33 @@ func test_debug_tabs_toggle_hides_and_restores_diagnostics() -> void:
 
 	toggle.button_pressed = false
 	assert_false(debug_tabs.visible, "Turning the debug toggle off should collapse the debug tabs")
-	assert_eq(toggle.text, "Show debug tabs", "Collapsed debug state should advertise how to restore the diagnostics")
+	assert_eq(toggle.text, "▸", "Collapsed debug state should advertise restore with the matching icon treatment")
 
 	toggle.button_pressed = true
 	assert_true(debug_tabs.visible, "Turning the debug toggle back on should restore the debug tabs")
-	assert_eq(toggle.text, "Hide debug tabs", "Expanded debug state should advertise how to collapse the diagnostics")
+	assert_eq(toggle.text, "▾", "Expanded debug state should advertise collapse with the matching icon treatment")
+
+func test_media_toggle_collapses_and_restores_preview_surface() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	var toggle := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/MediaToolbar/MediaInsetToggleButton") as Button
+	var media_inset := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel") as PanelContainer
+	var camera_feed_host := instance.get_node_or_null("RootMargin/RootSplit/RightColumn/PreviewPanel/PreviewMargin/PreviewStack/MediaInsetPanel/MediaInsetMargin/MediaInsetColumn/CameraFeedHost") as Control
+	assert_true(toggle != null, "Harness should expose the media preview toggle button")
+	assert_true(media_inset != null, "Harness should expose the media inset panel")
+	assert_true(camera_feed_host != null, "Harness should expose the media preview host")
+	assert_true(camera_feed_host.visible, "Media preview should start expanded for diagnosis")
+
+	toggle.button_pressed = false
+	assert_false(camera_feed_host.visible, "Turning the media toggle off should collapse the preview surface")
+	assert_eq(toggle.text, "▸", "Collapsed media preview should advertise restore with the matching icon treatment")
+	assert_eq(media_inset.offset_top, -72.0, "Collapsed media preview should shrink to a compact title-bar footprint while staying anchored")
+
+	toggle.button_pressed = true
+	assert_true(camera_feed_host.visible, "Turning the media toggle back on should restore the preview surface")
+	assert_eq(toggle.text, "▾", "Expanded media preview should advertise collapse with the matching icon treatment")
+	assert_eq(media_inset.offset_top, -316.0, "Expanded media preview should restore the larger diagnostic surface")
 
 func test_server_started_signal_does_not_start_camera_stream_before_stabilization_finishes() -> void:
 	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
