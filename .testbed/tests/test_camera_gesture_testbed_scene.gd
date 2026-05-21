@@ -53,6 +53,38 @@ class FakeAutoStartManager:
 	func is_server_running() -> bool:
 		return server_running
 
+class FakeFallbackAutoStartManager:
+	extends Node
+
+	var camera_source_override := ""
+	var tracking_overlay_mode := "full"
+	var stop_server_call_count := 0
+	var start_server_call_count := 0
+	var server_running := true
+
+	func stop_server() -> void:
+		stop_server_call_count += 1
+		server_running = false
+
+	func start_server() -> bool:
+		start_server_call_count += 1
+		server_running = true
+		return true
+
+	func is_server_running() -> bool:
+		return server_running
+
+class FakeSelectableInputSource:
+	extends Node
+
+	var selected_camera_device_id := ""
+	var set_selected_camera_device_id_call_count := 0
+
+	func set_selected_camera_device_id(device_id: String) -> bool:
+		set_selected_camera_device_id_call_count += 1
+		selected_camera_device_id = device_id
+		return true
+
 func test_camera_gesture_testbed_scene_loads() -> void:
 	var scene := load("res://scenes/camera_gesture_testbed.tscn")
 	assert_true(scene != null, "Camera gesture testbed scene should be loadable")
@@ -283,6 +315,38 @@ func test_overlay_normalization_flips_provider_y_and_velocity_for_gameplay_space
 	assert_eq(position, Vector2(0.25, 0.80), "Overlay should convert provider-normalized gameplay Y into top-left UI space with 1.0 - y")
 	assert_eq(velocity, Vector2(0.10, -0.30), "Overlay velocity should use the same Y convention as the converted gameplay-space position")
 
+func test_overlay_filters_and_projects_provider_landmarks_for_visible_pose_dots() -> void:
+	var overlay_script := load("res://scripts/tracking_inset_overlay.gd")
+	var overlay = add_child_autofree(overlay_script.new())
+	overlay.call("update_snapshot", {
+		"tracking_overlay_mode": "optimized",
+		"tracking_min_visibility": 0.35,
+		"pose_landmarks": [
+			{"id": 0, "x": 0.25, "y": 0.20, "v": 0.90},
+			{"id": 1, "x": 0.75, "y": 0.60, "v": 0.20},
+			{"id": 2, "x": 1.20, "y": 0.40, "v": 0.95},
+		],
+	})
+	var landmarks: Array = overlay.call("_filtered_landmarks_for_display")
+	assert_eq(landmarks.size(), 1, "Overlay should keep only in-bounds landmarks that meet the visibility threshold")
+	var rect := Rect2(Vector2(48.0, 12.0), Vector2(320.0, 240.0))
+	var projected: Vector2 = overlay.call("_landmark_to_rect_point", rect, landmarks[0])
+	assert_eq(projected, Vector2(128.0, 204.0), "Overlay should map provider-normalized gameplay landmarks into the displayed-image rect without double-mirroring")
+
+func test_collect_source_snapshot_carries_pose_overlay_payload_for_live_and_disables_it_for_fake() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	instance.set("_source_mode", "mediapipe_live")
+	instance.set("_selected_mediapipe_tracking_quality", "optimized")
+	instance.set("_latest_pose_landmarks", [{"id": 0, "x": 0.4, "y": 0.3, "v": 0.8}])
+	var live_snapshot: Dictionary = instance.call("_collect_source_snapshot")
+	assert_eq(String(live_snapshot.get("tracking_overlay_mode", "")), "optimized", "Live snapshot should tell the inset overlay to render the selected donor-style tracking mode")
+	assert_eq(int((live_snapshot.get("pose_landmarks", []) as Array).size()), 1, "Live snapshot should include the latest normalized pose landmarks for visible overlay rendering")
+	instance.set("_source_mode", "fake")
+	var fake_snapshot: Dictionary = instance.call("_collect_source_snapshot")
+	assert_eq(String(fake_snapshot.get("tracking_overlay_mode", "")), "off", "Fake snapshot should not request donor-style landmark overlay rendering")
+
 func test_live_camera_runtime_restart_uses_restart_server_and_waits_for_stream_ready() -> void:
 	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
 	var instance := packed_scene.instantiate()
@@ -293,7 +357,7 @@ func test_live_camera_runtime_restart_uses_restart_server_and_waits_for_stream_r
 	add_child_autofree(camera_view)
 	instance.set("_mediapipe_autostart_manager", manager)
 	instance.set("_mediapipe_camera_view", camera_view)
-	var input_source := Node.new()
+	var input_source := FakeSelectableInputSource.new()
 	add_child_autofree(input_source)
 	instance.set("_mediapipe_input_source", input_source)
 	instance.set("_source_mode", "mediapipe_live")
@@ -303,5 +367,33 @@ func test_live_camera_runtime_restart_uses_restart_server_and_waits_for_stream_r
 	await instance.call("_start_owned_mediapipe_runtime_async", 0, "mediapipe_live")
 	assert_eq(manager.restart_server_call_count, 1, "Live camera switch should route through restart_server when the active runtime signature changes")
 	assert_eq(manager.restart_server_last_override, "/dev/video7", "Live camera switch should restart the owned runtime with the newly selected camera override")
+	assert_eq(input_source.set_selected_camera_device_id_call_count, 1, "Live camera switch should also push the chosen device into the active input source before restart")
+	assert_eq(String(input_source.selected_camera_device_id), "/dev/video7", "Live camera switch should keep the active input source aligned with the chosen camera")
 	assert_eq(camera_view.start_stream_call_count, 1, "Owned runtime restart should wait for the preview stream to be started again before declaring readiness")
 	assert_eq(String(instance.get("_mediapipe_runtime_status")), "ready", "Owned runtime restart should only report ready after the restart choreography finishes")
+
+func test_live_camera_runtime_restart_falls_back_to_stop_start_and_preserves_camera_override() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	var manager := FakeFallbackAutoStartManager.new()
+	add_child_autofree(manager)
+	var camera_view := FakeCameraView.new()
+	add_child_autofree(camera_view)
+	var input_source := FakeSelectableInputSource.new()
+	add_child_autofree(input_source)
+	instance.set("_mediapipe_autostart_manager", manager)
+	instance.set("_mediapipe_camera_view", camera_view)
+	instance.set("_mediapipe_input_source", input_source)
+	instance.set("_source_mode", "mediapipe_live")
+	instance.set("_selected_mediapipe_live_camera_id", "/dev/video5")
+	instance.set("_selected_mediapipe_tracking_quality", "full")
+	instance.set("_mediapipe_runtime_signature", "mediapipe_live|0|full|1")
+	await instance.call("_start_owned_mediapipe_runtime_async", 0, "mediapipe_live")
+	assert_eq(manager.stop_server_call_count, 1, "When restart_server is unavailable, live camera switch should stop the owned sidecar before restarting it")
+	assert_eq(manager.start_server_call_count, 1, "When restart_server is unavailable, live camera switch should restart the owned sidecar explicitly")
+	assert_eq(String(manager.camera_source_override), "/dev/video5", "Fallback restart path should preserve the selected camera override for the restarted sidecar")
+	assert_eq(input_source.set_selected_camera_device_id_call_count, 1, "Fallback restart path should keep the active input source camera source aligned with the selected live camera")
+	assert_eq(String(input_source.selected_camera_device_id), "/dev/video5")
+	assert_eq(camera_view.start_stream_call_count, 1, "Fallback restart path should still wait for the preview stream to become ready")
+	assert_eq(String(instance.get("_mediapipe_runtime_status")), "ready")

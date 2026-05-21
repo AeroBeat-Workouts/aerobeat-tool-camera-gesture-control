@@ -831,11 +831,7 @@ func _start_owned_mediapipe_runtime_async(request_serial: int, requested_mode: S
 	_mediapipe_runtime_last_error = ""
 	if needs_restart:
 		_clear_owned_mediapipe_runtime_state()
-		if _mediapipe_autostart_manager.has_method("restart_server"):
-			started = bool(await _mediapipe_autostart_manager.restart_server(_requested_mediapipe_camera_source_override(requested_mode)))
-		else:
-			await _mediapipe_autostart_manager.stop_server()
-			started = bool(await _mediapipe_autostart_manager.start_server())
+		started = bool(await _restart_owned_mediapipe_server_for_request(requested_mode))
 	elif _mediapipe_autostart_manager.has_method("is_server_running") and not bool(_mediapipe_autostart_manager.is_server_running()):
 		started = bool(await _mediapipe_autostart_manager.start_server())
 	if request_serial != _mediapipe_runtime_request_serial:
@@ -867,6 +863,19 @@ func _clear_owned_mediapipe_runtime_state() -> void:
 		_mediapipe_camera_view.update_overlay([])
 	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming()):
 		_mediapipe_camera_view.stop_stream()
+
+func _restart_owned_mediapipe_server_for_request(requested_mode: String) -> bool:
+	if _mediapipe_autostart_manager == null or not is_instance_valid(_mediapipe_autostart_manager):
+		return false
+	var requested_override := _requested_mediapipe_camera_source_override(requested_mode)
+	_mediapipe_autostart_manager.camera_source_override = requested_override
+	if requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE and _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source) and _mediapipe_input_source.has_method("set_selected_camera_device_id"):
+		_mediapipe_input_source.set_selected_camera_device_id(requested_override)
+	if _mediapipe_autostart_manager.has_method("restart_server"):
+		return bool(await _mediapipe_autostart_manager.restart_server(requested_override))
+	await _mediapipe_autostart_manager.stop_server()
+	_mediapipe_autostart_manager.camera_source_override = requested_override
+	return bool(await _mediapipe_autostart_manager.start_server())
 
 func _await_owned_mediapipe_runtime_ready(request_serial: int, requested_mode: String, timeout_ms: int = 8000) -> bool:
 	var deadline_ms := Time.get_ticks_msec() + timeout_ms
@@ -1356,6 +1365,9 @@ func _collect_source_snapshot() -> Dictionary:
 		"live_camera_id": _selected_mediapipe_live_camera_id,
 		"tracking_quality": _selected_mediapipe_tracking_quality,
 		"tracking_quality_settings": tracking_quality_settings.duplicate(true),
+		"tracking_overlay_mode": str(tracking_quality_settings.get("tracking_overlay_mode", "off")) if _is_mediapipe_mode(_source_mode) else "off",
+		"tracking_min_visibility": float(tracking_quality_settings.get("min_visibility", 0.35)),
+		"pose_landmarks": _latest_pose_landmarks.duplicate(true),
 	}
 	if _current_input_source != null and _current_input_source.has_method("get_head_position"):
 		snapshot["head_position"] = _coerce_vector3(_current_input_source.get_head_position())
