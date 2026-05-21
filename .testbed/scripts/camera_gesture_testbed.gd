@@ -113,6 +113,8 @@ var _mediapipe_runtime_signature := ""
 var _mediapipe_runtime_status := "inactive"
 var _mediapipe_runtime_last_error := ""
 var _mediapipe_runtime_request_serial := 0
+var _mediapipe_owned_restart_cleanup_pending := false
+var _mediapipe_owned_restart_rebuild_preview_pending := false
 var _mediapipe_input_source_is_borrowed := false
 var _mediapipe_owned_session_key := ""
 var _mediapipe_borrowed_session_key := ""
@@ -830,7 +832,6 @@ func _start_owned_mediapipe_runtime_async(request_serial: int, requested_mode: S
 	_mediapipe_runtime_status = "starting"
 	_mediapipe_runtime_last_error = ""
 	if needs_restart:
-		_clear_owned_mediapipe_runtime_state(requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE)
 		started = bool(await _restart_owned_mediapipe_server_for_request(requested_mode))
 	elif _mediapipe_autostart_manager.has_method("is_server_running") and not bool(_mediapipe_autostart_manager.is_server_running()):
 		started = bool(await _mediapipe_autostart_manager.start_server())
@@ -856,6 +857,10 @@ func _start_owned_mediapipe_runtime_async(request_serial: int, requested_mode: S
 	_update_status("%s runtime ready" % _source_mode_label(requested_mode))
 
 func _clear_owned_mediapipe_runtime_state(rebuild_preview: bool = false) -> void:
+	_clear_owned_mediapipe_preview_state(rebuild_preview)
+	_teardown_owned_mediapipe_input_source_for_restart()
+
+func _clear_owned_mediapipe_preview_state(rebuild_preview: bool = false) -> void:
 	_latest_pose_landmarks.clear()
 	if _tracking_overlay != null:
 		_tracking_overlay.clear_snapshot()
@@ -866,18 +871,62 @@ func _clear_owned_mediapipe_runtime_state(rebuild_preview: bool = false) -> void
 	if rebuild_preview:
 		_rebuild_mediapipe_camera_view()
 
+func _mark_owned_mediapipe_restart_cleanup_pending(rebuild_preview: bool) -> void:
+	_mediapipe_owned_restart_cleanup_pending = true
+	_mediapipe_owned_restart_rebuild_preview_pending = rebuild_preview
+	_mediapipe_runtime_status = "stopping"
+
+func _complete_owned_mediapipe_restart_cleanup_if_pending() -> void:
+	if not _mediapipe_owned_restart_cleanup_pending:
+		return
+	var rebuild_preview := _mediapipe_owned_restart_rebuild_preview_pending
+	_mediapipe_owned_restart_cleanup_pending = false
+	_mediapipe_owned_restart_rebuild_preview_pending = false
+	_clear_owned_mediapipe_preview_state(rebuild_preview)
+	_teardown_owned_mediapipe_input_source_for_restart()
+
+func _teardown_owned_mediapipe_input_source_for_restart() -> void:
+	if _mediapipe_input_source == null or not is_instance_valid(_mediapipe_input_source) or _mediapipe_input_source_is_borrowed:
+		return
+	var owned_source := _mediapipe_input_source
+	var registry = _load_provider_session_registry()
+	if registry != null and not _mediapipe_owned_session_key.is_empty():
+		registry.unpublish_session(MEDIAPIPE_SESSION_OWNER_ID, _mediapipe_owned_session_key)
+	_disconnect_mediapipe_backend_if_possible()
+	_disconnect_mediapipe_input_source_signals(owned_source)
+	if owned_source.has_method("stop"):
+		owned_source.stop()
+	if owned_source.get_parent() == self:
+		owned_source.queue_free()
+	_mediapipe_input_source = null
+	_mediapipe_input_source_is_borrowed = false
+	_mediapipe_owned_session_key = ""
+	_mediapipe_borrowed_session_key = ""
+	_mediapipe_session_owner_id = ""
+	_mediapipe_session_metadata = {}
+
 func _restart_owned_mediapipe_server_for_request(requested_mode: String) -> bool:
 	if _mediapipe_autostart_manager == null or not is_instance_valid(_mediapipe_autostart_manager):
 		return false
 	var requested_override := _requested_mediapipe_camera_source_override(requested_mode)
+	_mark_owned_mediapipe_restart_cleanup_pending(requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE)
 	_mediapipe_autostart_manager.camera_source_override = requested_override
 	if requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE and _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source) and _mediapipe_input_source.has_method("set_selected_camera_device_id"):
 		_mediapipe_input_source.set_selected_camera_device_id(requested_override)
+	var restart_ok := false
 	if _mediapipe_autostart_manager.has_method("restart_server"):
-		return bool(await _mediapipe_autostart_manager.restart_server(requested_override))
-	await _mediapipe_autostart_manager.stop_server()
-	_mediapipe_autostart_manager.camera_source_override = requested_override
-	return bool(await _mediapipe_autostart_manager.start_server())
+		restart_ok = bool(await _mediapipe_autostart_manager.restart_server(requested_override))
+	else:
+		await _mediapipe_autostart_manager.stop_server()
+		_mediapipe_autostart_manager.camera_source_override = requested_override
+		restart_ok = bool(await _mediapipe_autostart_manager.start_server())
+	_complete_owned_mediapipe_restart_cleanup_if_pending()
+	if not restart_ok:
+		return false
+	if not _start_local_mediapipe_input_source(requested_mode):
+		_mediapipe_runtime_last_error = "failed to recreate owned input source after restart"
+		return false
+	return true
 
 func _await_owned_mediapipe_runtime_ready(request_serial: int, requested_mode: String, timeout_ms: int = 8000) -> bool:
 	var deadline_ms := Time.get_ticks_msec() + timeout_ms
@@ -1037,6 +1086,7 @@ func _on_mediapipe_server_started(_pid: int) -> void:
 
 func _on_mediapipe_server_stopped() -> void:
 	_mediapipe_runtime_status = "stopped"
+	_complete_owned_mediapipe_restart_cleanup_if_pending()
 
 func _on_mediapipe_server_failed(error: String) -> void:
 	_mediapipe_runtime_status = "failed"

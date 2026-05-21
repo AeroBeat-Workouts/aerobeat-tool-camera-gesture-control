@@ -5,6 +5,7 @@ const TRACE_STORE_SCRIPT := preload("res://scripts/trace_capture_store.gd")
 class FakeCameraView:
 	extends TextureRect
 
+	var stream_url := "http://127.0.0.1:4243/camera"
 	var start_stream_call_count := 0
 	var overlay_updates: Array = []
 	var _streaming := false
@@ -83,11 +84,15 @@ class FakeSelectableInputSource:
 
 	var selected_camera_device_id := ""
 	var set_selected_camera_device_id_call_count := 0
+	var stop_call_count := 0
 
 	func set_selected_camera_device_id(device_id: String) -> bool:
 		set_selected_camera_device_id_call_count += 1
 		selected_camera_device_id = device_id
 		return true
+
+	func stop() -> void:
+		stop_call_count += 1
 
 func test_camera_gesture_testbed_scene_loads() -> void:
 	var scene := load("res://scenes/camera_gesture_testbed.tscn")
@@ -414,7 +419,40 @@ func test_live_camera_runtime_restart_falls_back_to_stop_start_and_preserves_cam
 	assert_eq(String(manager.camera_source_override), "/dev/video5", "Fallback restart path should preserve the selected camera override for the restarted sidecar")
 	assert_eq(input_source.set_selected_camera_device_id_call_count, 1, "Fallback restart path should keep the active input source camera source aligned with the selected live camera")
 	assert_eq(String(input_source.selected_camera_device_id), "/dev/video5")
+	assert_eq(input_source.stop_call_count, 1, "Fallback restart path should stop the stale owned input source before recreating it")
 	var rebuilt_camera_view = instance.get("_mediapipe_camera_view") as FakeCameraView
 	assert_false(rebuilt_camera_view == camera_view, "Fallback restart path should also rebuild the preview widget before streaming resumes")
 	assert_eq(rebuilt_camera_view.start_stream_call_count, 1, "Fallback restart path should still wait for the rebuilt preview stream to become ready")
+	assert_eq(String(instance.get("_mediapipe_runtime_status")), "ready")
+
+func test_tracking_quality_restart_recreates_owned_input_source_after_stop_boundary() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	var manager := FakeAutoStartManager.new()
+	add_child_autofree(manager)
+	var existing_camera_view = instance.get("_mediapipe_camera_view")
+	if existing_camera_view != null and is_instance_valid(existing_camera_view):
+		existing_camera_view.queue_free()
+		await get_tree().process_frame
+	var camera_view := FakeCameraView.new()
+	var camera_feed_host := instance.get("_camera_feed_host") as Control
+	camera_feed_host.add_child(camera_view)
+	camera_feed_host.move_child(camera_view, 0)
+	var input_source := FakeSelectableInputSource.new()
+	add_child_autofree(input_source)
+	instance.set("_mediapipe_autostart_manager", manager)
+	instance.set("_mediapipe_camera_view", camera_view)
+	instance.set("_mediapipe_input_source", input_source)
+	instance.set("_source_mode", "mediapipe_live")
+	instance.set("_selected_mediapipe_live_camera_id", "/dev/video3")
+	instance.set("_selected_mediapipe_tracking_quality", "optimized")
+	instance.set("_mediapipe_runtime_signature", "mediapipe_live|/dev/video3|full|1")
+	await instance.call("_start_owned_mediapipe_runtime_async", 0, "mediapipe_live")
+	assert_eq(manager.restart_server_call_count, 1, "Tracking-quality change should still route through owned-runtime restart")
+	assert_eq(input_source.stop_call_count, 1, "Tracking-quality restart should stop the stale owned input source before recreating it")
+	assert_false(instance.get("_mediapipe_input_source") == input_source, "Tracking-quality restart should recreate the owned input source instead of hot-reusing the stale one")
+	var rebuilt_camera_view = instance.get("_mediapipe_camera_view") as FakeCameraView
+	assert_false(rebuilt_camera_view == camera_view, "Tracking-quality restart should rebuild the preview widget after cleanup")
+	assert_eq(rebuilt_camera_view.start_stream_call_count, 1, "Tracking-quality restart should wait for the rebuilt preview stream before reporting ready")
 	assert_eq(String(instance.get("_mediapipe_runtime_status")), "ready")
