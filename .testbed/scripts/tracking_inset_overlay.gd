@@ -8,14 +8,16 @@ const ACTIVE_COLOR := Color(0.24, 0.90, 0.60, 0.92)
 const INACTIVE_COLOR := Color(1.0, 0.45, 0.32, 0.85)
 const TRAIL_COLOR := Color(0.46, 0.82, 1.0, 0.55)
 const VELOCITY_COLOR := Color(1.0, 0.85, 0.32, 0.78)
+const POSITION_SENTINEL := Vector2(-1.0, -1.0)
 
 var _snapshot := {}
 var _trail: Array[Vector2] = []
+var _display_rect := Rect2()
 
 func update_snapshot(snapshot: Dictionary) -> void:
 	_snapshot = snapshot.duplicate(true)
 	var normalized := _extract_normalized_position(_snapshot)
-	if normalized != Vector2(-1.0, -1.0):
+	if normalized != POSITION_SENTINEL:
 		_trail.append(normalized)
 		while _trail.size() > MAX_TRAIL_POINTS:
 			_trail.remove_at(0)
@@ -24,17 +26,26 @@ func update_snapshot(snapshot: Dictionary) -> void:
 			_trail.remove_at(0)
 	queue_redraw()
 
+func set_display_rect(rect: Rect2) -> void:
+	_display_rect = rect
+	queue_redraw()
+
 func clear_snapshot() -> void:
 	_snapshot.clear()
 	_trail.clear()
 	queue_redraw()
 
 func _draw() -> void:
-	var rect := Rect2(Vector2.ZERO, size)
+	var rect := _effective_display_rect()
 	draw_rect(rect, Color(0.02, 0.04, 0.07, 0.20), false, 1.0)
 	_draw_guides(rect)
 	_draw_confidence_bar(rect)
 	_draw_motion(rect)
+
+func _effective_display_rect() -> Rect2:
+	if _display_rect.size.x > 0.0 and _display_rect.size.y > 0.0:
+		return _display_rect
+	return Rect2(Vector2.ZERO, size)
 
 func _draw_guides(rect: Rect2) -> void:
 	var center := rect.get_center()
@@ -62,7 +73,7 @@ func _draw_motion(rect: Rect2) -> void:
 			draw_line(_to_rect_point(rect, _trail[index]), _to_rect_point(rect, _trail[index + 1]), TRAIL_COLOR * Color(1.0, 1.0, 1.0, alpha), 2.0)
 
 	var normalized := _extract_normalized_position(_snapshot)
-	if normalized == Vector2(-1.0, -1.0):
+	if normalized == POSITION_SENTINEL:
 		return
 	var point := _to_rect_point(rect, normalized)
 	var active := bool(_snapshot.get("tracking", false))
@@ -72,7 +83,7 @@ func _draw_motion(rect: Rect2) -> void:
 
 	var velocity := _extract_velocity(_snapshot)
 	if velocity.length() > 0.001:
-		var arrow := point + Vector2(velocity.x, velocity.y) * Vector2(rect.size.x, rect.size.y) * 0.12
+		var arrow := point + Vector2(velocity.x, velocity.y) * rect.size * 0.12
 		draw_line(point, arrow, VELOCITY_COLOR, 2.0)
 		var direction := (arrow - point).normalized()
 		var left := arrow - direction * 10.0 + Vector2(-direction.y, direction.x) * 5.0
@@ -84,18 +95,18 @@ func _extract_normalized_position(snapshot: Dictionary) -> Vector2:
 	var raw: Variant = snapshot.get("head_position", null)
 	if raw is Vector3:
 		var raw_position: Vector3 = raw
-		return Vector2(clampf(raw_position.x, 0.0, 1.0), clampf(raw_position.y, 0.0, 1.0))
+		return Vector2(clampf(raw_position.x, 0.0, 1.0), 1.0 - clampf(raw_position.y, 0.0, 1.0))
 	if raw is Dictionary:
-		return Vector2(clampf(float(raw.get("x", 0.5)), 0.0, 1.0), clampf(float(raw.get("y", 0.5)), 0.0, 1.0))
-	return Vector2(-1.0, -1.0)
+		return Vector2(clampf(float(raw.get("x", 0.5)), 0.0, 1.0), 1.0 - clampf(float(raw.get("y", 0.5)), 0.0, 1.0))
+	return POSITION_SENTINEL
 
 func _extract_velocity(snapshot: Dictionary) -> Vector2:
 	var raw: Variant = snapshot.get("head_velocity", null)
 	if raw is Vector3:
 		var velocity: Vector3 = raw
-		return Vector2(velocity.x, velocity.y)
+		return Vector2(velocity.x, -velocity.y)
 	if raw is Dictionary:
-		return Vector2(float(raw.get("x", 0.0)), float(raw.get("y", 0.0)))
+		return Vector2(float(raw.get("x", 0.0)), -float(raw.get("y", 0.0)))
 	return Vector2.ZERO
 
 func _to_rect_point(rect: Rect2, normalized: Vector2) -> Vector2:

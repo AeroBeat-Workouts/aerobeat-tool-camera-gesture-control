@@ -6,10 +6,52 @@ class FakeCameraView:
 	extends Control
 
 	var start_stream_call_count := 0
+	var _streaming := false
 
 	func start_stream() -> bool:
 		start_stream_call_count += 1
+		_streaming = true
 		return true
+
+	func is_streaming() -> bool:
+		return _streaming
+
+	func stop_stream() -> void:
+		_streaming = false
+
+	func _get_displayed_image_size() -> Vector2:
+		return size if size.x > 0.0 and size.y > 0.0 else Vector2(640.0, 480.0)
+
+	func _get_displayed_image_offset(_displayed_size: Vector2) -> Vector2:
+		return Vector2.ZERO
+
+class FakeBoundsCameraView:
+	extends Control
+
+	func _get_displayed_image_size() -> Vector2:
+		return Vector2(320.0, 240.0)
+
+	func _get_displayed_image_offset(_displayed_size: Vector2) -> Vector2:
+		return Vector2(48.0, 12.0)
+
+class FakeAutoStartManager:
+	extends Node
+
+	var camera_source_override := ""
+	var tracking_overlay_mode := "full"
+	var restart_server_call_count := 0
+	var restart_server_last_override := ""
+	var server_running := true
+
+	func restart_server(new_camera_source_override: String = "") -> bool:
+		restart_server_call_count += 1
+		restart_server_last_override = new_camera_source_override
+		camera_source_override = new_camera_source_override
+		server_running = true
+		return true
+
+	func is_server_running() -> bool:
+		return server_running
 
 func test_camera_gesture_testbed_scene_loads() -> void:
 	var scene := load("res://scenes/camera_gesture_testbed.tscn")
@@ -212,3 +254,54 @@ func test_mediapipe_runtime_settings_include_live_camera_and_tracking_quality_tu
 	assert_eq(String(live_settings.get("tracking_overlay_mode", "")), "optimized", "Live runtime should forward the effective overlay mode")
 	assert_eq(int(live_settings.get("gesture_eval_interval_frames", 0)), 1, "Parity pass should keep the proving-flow gesture cadence truthful by default")
 	assert_almost_eq(float(live_settings.get("min_visibility", 0.0)), 0.35, 0.001, "Live runtime should forward the proving-flow min-visibility default")
+
+func test_camera_view_overlay_is_disabled_for_provider_normalized_landmarks() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	var camera_view = instance.get("_mediapipe_camera_view")
+	assert_true(camera_view != null, "Harness should create a MediaPipe camera view when the addon seam exists")
+	assert_false(bool(camera_view.show_overlay), "Camera view built-in overlay should stay disabled because the harness uses provider-normalized gameplay-space landmarks")
+
+func test_tracking_overlay_display_rect_uses_displayed_image_bounds() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	await get_tree().process_frame
+	var camera_view := FakeBoundsCameraView.new()
+	add_child_autofree(camera_view)
+	instance.set("_mediapipe_camera_view", camera_view)
+	var rect: Rect2 = instance.call("_current_tracking_overlay_display_rect")
+	assert_eq(rect.position, Vector2(48.0, 12.0), "Tracking inset should draw inside the actual displayed-image offset, not the full host rect")
+	assert_eq(rect.size, Vector2(320.0, 240.0), "Tracking inset should draw inside the actual displayed-image bounds, not the full host rect")
+
+func test_overlay_normalization_flips_provider_y_and_velocity_for_gameplay_space() -> void:
+	var overlay_script := load("res://scripts/tracking_inset_overlay.gd")
+	var overlay = add_child_autofree(overlay_script.new())
+	var position: Vector2 = overlay.call("_extract_normalized_position", {"head_position": Vector3(0.25, 0.20, 0.0)})
+	var velocity: Vector2 = overlay.call("_extract_velocity", {"head_velocity": Vector3(0.10, 0.30, 0.0)})
+	assert_eq(position, Vector2(0.25, 0.80), "Overlay should convert provider-normalized gameplay Y into top-left UI space with 1.0 - y")
+	assert_eq(velocity, Vector2(0.10, -0.30), "Overlay velocity should use the same Y convention as the converted gameplay-space position")
+
+func test_live_camera_runtime_restart_uses_restart_server_and_waits_for_stream_ready() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	var manager := FakeAutoStartManager.new()
+	add_child_autofree(manager)
+	var camera_view := FakeCameraView.new()
+	add_child_autofree(camera_view)
+	instance.set("_mediapipe_autostart_manager", manager)
+	instance.set("_mediapipe_camera_view", camera_view)
+	var input_source := Node.new()
+	add_child_autofree(input_source)
+	instance.set("_mediapipe_input_source", input_source)
+	instance.set("_source_mode", "mediapipe_live")
+	instance.set("_selected_mediapipe_live_camera_id", "/dev/video7")
+	instance.set("_selected_mediapipe_tracking_quality", "optimized")
+	instance.set("_mediapipe_runtime_signature", "mediapipe_live|0|full|1")
+	await instance.call("_start_owned_mediapipe_runtime_async", 0, "mediapipe_live")
+	assert_eq(manager.restart_server_call_count, 1, "Live camera switch should route through restart_server when the active runtime signature changes")
+	assert_eq(manager.restart_server_last_override, "/dev/video7", "Live camera switch should restart the owned runtime with the newly selected camera override")
+	assert_eq(camera_view.start_stream_call_count, 1, "Owned runtime restart should wait for the preview stream to be started again before declaring readiness")
+	assert_eq(String(instance.get("_mediapipe_runtime_status")), "ready", "Owned runtime restart should only report ready after the restart choreography finishes")

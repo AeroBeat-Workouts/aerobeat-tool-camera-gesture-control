@@ -178,6 +178,7 @@ func _process(delta: float) -> void:
 
 	_latest_provider_state = _collect_provider_snapshot()
 	_latest_source_snapshot = _collect_source_snapshot()
+	_tracking_overlay.set_display_rect(_current_tracking_overlay_display_rect())
 	_tracking_overlay.update_snapshot(_latest_source_snapshot)
 	_capture_trace_frame_if_needed()
 	_update_debug_surfaces()
@@ -815,31 +816,84 @@ func _start_owned_mediapipe_runtime_async(request_serial: int, requested_mode: S
 	if requested_mode == SOURCE_MODE_MEDIAPIPE_REPLAY and _requested_mediapipe_camera_source_override(requested_mode).is_empty():
 		_update_status("Replay mode requires a valid fixture video path")
 		return
-	if _mediapipe_autostart_manager != null and is_instance_valid(_mediapipe_autostart_manager) and _mediapipe_runtime_signature != runtime_signature:
-		_reset_mediapipe_autostart_manager()
-		await get_tree().process_frame
-	if request_serial != _mediapipe_runtime_request_serial:
-		return
-	if _mediapipe_autostart_manager == null or not is_instance_valid(_mediapipe_autostart_manager):
+	var existing_manager := _mediapipe_autostart_manager != null and is_instance_valid(_mediapipe_autostart_manager)
+	if not existing_manager:
 		if not _ensure_mediapipe_autostart_manager(requested_mode):
 			_update_status("MediaPipe AutoStartManager seam is unavailable")
 			return
+	else:
+		_mediapipe_autostart_manager.camera_source_override = _requested_mediapipe_camera_source_override(requested_mode)
+		var tracking_quality_settings := _current_mediapipe_tracking_quality_settings()
+		_mediapipe_autostart_manager.tracking_overlay_mode = str(tracking_quality_settings.get("tracking_overlay_mode", "full"))
+	var needs_restart := existing_manager and _mediapipe_runtime_signature != runtime_signature
 	var started := true
 	_mediapipe_runtime_status = "starting"
 	_mediapipe_runtime_last_error = ""
-	if _mediapipe_autostart_manager.has_method("is_server_running") and not bool(_mediapipe_autostart_manager.is_server_running()):
+	if needs_restart:
+		_clear_owned_mediapipe_runtime_state()
+		if _mediapipe_autostart_manager.has_method("restart_server"):
+			started = bool(await _mediapipe_autostart_manager.restart_server(_requested_mediapipe_camera_source_override(requested_mode)))
+		else:
+			await _mediapipe_autostart_manager.stop_server()
+			started = bool(await _mediapipe_autostart_manager.start_server())
+	elif _mediapipe_autostart_manager.has_method("is_server_running") and not bool(_mediapipe_autostart_manager.is_server_running()):
 		started = bool(await _mediapipe_autostart_manager.start_server())
 	if request_serial != _mediapipe_runtime_request_serial:
 		return
 	if not started:
 		_mediapipe_runtime_status = "failed"
 		if _mediapipe_runtime_last_error.is_empty():
-			_mediapipe_runtime_last_error = "start_server returned false"
+			_mediapipe_runtime_last_error = "restart_server returned false" if needs_restart else "start_server returned false"
 		_update_status("Failed to start %s runtime" % _source_mode_label(requested_mode))
 		return
+	var ready := await _await_owned_mediapipe_runtime_ready(request_serial, requested_mode)
+	if request_serial != _mediapipe_runtime_request_serial:
+		return
+	if not ready:
+		_mediapipe_runtime_status = "failed"
+		if _mediapipe_runtime_last_error.is_empty():
+			_mediapipe_runtime_last_error = "runtime did not become ready before timeout"
+		_update_status("Failed to stabilize %s runtime" % _source_mode_label(requested_mode))
+		return
 	_mediapipe_runtime_status = "ready"
+	_mediapipe_runtime_signature = runtime_signature
 	_update_status("%s runtime ready" % _source_mode_label(requested_mode))
-	call_deferred("_ensure_mediapipe_camera_stream")
+
+func _clear_owned_mediapipe_runtime_state() -> void:
+	_latest_pose_landmarks.clear()
+	if _tracking_overlay != null:
+		_tracking_overlay.clear_snapshot()
+	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("update_overlay"):
+		_mediapipe_camera_view.update_overlay([])
+	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming()):
+		_mediapipe_camera_view.stop_stream()
+
+func _await_owned_mediapipe_runtime_ready(request_serial: int, requested_mode: String, timeout_ms: int = 8000) -> bool:
+	var deadline_ms := Time.get_ticks_msec() + timeout_ms
+	while Time.get_ticks_msec() < deadline_ms:
+		if request_serial != _mediapipe_runtime_request_serial:
+			return false
+		if _owned_mediapipe_runtime_is_ready(requested_mode):
+			return true
+		await _ensure_mediapipe_camera_stream()
+		if _owned_mediapipe_runtime_is_ready(requested_mode):
+			return true
+		await get_tree().process_frame
+	return _owned_mediapipe_runtime_is_ready(requested_mode)
+
+func _owned_mediapipe_runtime_is_ready(requested_mode: String) -> bool:
+	if _mediapipe_input_source == null or not is_instance_valid(_mediapipe_input_source):
+		return false
+	if _mediapipe_autostart_manager == null or not is_instance_valid(_mediapipe_autostart_manager):
+		return false
+	if _mediapipe_autostart_manager.has_method("is_server_running") and not bool(_mediapipe_autostart_manager.is_server_running()):
+		return false
+	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("is_streaming"):
+		if not bool(_mediapipe_camera_view.is_streaming()):
+			return false
+	if requested_mode == SOURCE_MODE_MEDIAPIPE_REPLAY:
+		return bool(_fixture_runtime_config.get("runtime_ready", false))
+	return true
 
 func _ensure_mediapipe_autostart_manager(requested_mode: String) -> bool:
 	if not ResourceLoader.exists(MEDIAPIPE_AUTOSTART_MANAGER_PATH):
@@ -959,6 +1013,7 @@ func _configure_mediapipe_camera_view_for_mode(mode: String) -> void:
 		return
 	if _mediapipe_camera_view.has_method("set"):
 		_mediapipe_camera_view.flip_horizontal = mode == SOURCE_MODE_MEDIAPIPE_LIVE
+		_mediapipe_camera_view.show_overlay = false
 
 func _on_mediapipe_server_progress(_percentage: int, message: String) -> void:
 	_mediapipe_runtime_status = message
@@ -1564,6 +1619,24 @@ func _build_provider_debug_text() -> String:
 		lines.append("Latest landmarks captured: %d" % _latest_pose_landmarks.size())
 	return "\n".join(lines)
 
+func _current_tracking_overlay_display_rect() -> Rect2:
+	if _tracking_overlay == null:
+		return Rect2()
+	var overlay_size := _tracking_overlay.size
+	if overlay_size.x <= 0.0 or overlay_size.y <= 0.0:
+		return Rect2(Vector2.ZERO, overlay_size)
+	if _mediapipe_camera_view == null or not is_instance_valid(_mediapipe_camera_view):
+		return Rect2(Vector2.ZERO, overlay_size)
+	var displayed_size_value: Variant = _mediapipe_camera_view.call("_get_displayed_image_size")
+	if displayed_size_value is Vector2:
+		var displayed_size: Vector2 = displayed_size_value
+		var displayed_offset_value: Variant = _mediapipe_camera_view.call("_get_displayed_image_offset", displayed_size)
+		if displayed_offset_value is Vector2:
+			var displayed_offset: Vector2 = displayed_offset_value
+			if displayed_size.x > 0.0 and displayed_size.y > 0.0:
+				return Rect2(displayed_offset, displayed_size)
+	return Rect2(Vector2.ZERO, overlay_size)
+
 func _build_media_inset_status_line() -> String:
 	if _source_mode == SOURCE_MODE_FAKE:
 		return "Inset: fake source preview with tracking overlay"
@@ -1617,7 +1690,7 @@ func _ensure_mediapipe_camera_view_if_possible() -> void:
 	_mediapipe_camera_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_mediapipe_camera_view.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_mediapipe_camera_view.stream_url = DEFAULT_MEDIAPIPE_STREAM_URL
-	_mediapipe_camera_view.show_overlay = true
+	_mediapipe_camera_view.show_overlay = false
 	_camera_feed_host.add_child(_mediapipe_camera_view)
 	_camera_feed_host.move_child(_mediapipe_camera_view, 0)
 
