@@ -22,9 +22,16 @@ class FakeBackend:
 class FakeSharedProvider:
 	extends AeroInputProvider
 
+	signal camera_devices_changed(devices: Array, selected_device_id: String)
+
 	var tracking := true
 	var head_position := Vector3(0.62, 0.48, 0.05)
 	var stop_count := 0
+	var available_camera_devices := [
+		{"id": "0", "label": "Default camera"},
+		{"id": "/dev/video2", "label": "Logitech"},
+	]
+	var selected_camera_device_id := "0"
 	var _provider := FakeBackend.new()
 
 	func _init() -> void:
@@ -101,6 +108,17 @@ class FakeSharedProvider:
 	func get_tracking_confidence(_body_part: StringName) -> float:
 		return 0.91 if tracking else 0.0
 
+	func get_available_camera_devices() -> Array:
+		return available_camera_devices.duplicate(true)
+
+	func get_selected_camera_device_id() -> String:
+		return selected_camera_device_id
+
+	func set_selected_camera_device_id(device_id: String) -> bool:
+		selected_camera_device_id = device_id
+		camera_devices_changed.emit(get_available_camera_devices(), selected_camera_device_id)
+		return true
+
 func before_each() -> void:
 	REGISTRY_SCRIPT.clear_registry_for_testing()
 
@@ -128,6 +146,11 @@ func test_switch_to_mediapipe_reuses_published_shared_session() -> void:
 				"lane": "qa_owner_lane",
 				"stream_url": "http://127.0.0.1:4243/camera",
 				"runtime_mode": "live",
+				"camera_source": "0",
+				"tracking_quality": "full",
+				"min_visibility": 0.35,
+				"tracking_overlay_mode": "full",
+				"gesture_eval_interval_frames": 1,
 			},
 		}
 	)

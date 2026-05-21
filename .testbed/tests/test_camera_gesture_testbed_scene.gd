@@ -183,3 +183,32 @@ func test_mediapipe_runtime_settings_disable_horizontal_flip_for_replay() -> voi
 	var live_settings := JSON.parse_string(String(instance.call("_mediapipe_start_settings_json_for_mode", "mediapipe_live"))) as Dictionary
 	assert_eq(bool(replay_settings.get("flip_horizontal", true)), false, "Replay runtime should not mirror provider landmarks against prerecorded video")
 	assert_eq(bool(live_settings.get("flip_horizontal", false)), true, "Live runtime should preserve mirrored camera behavior")
+
+func test_live_mediapipe_controls_stay_hidden_for_fake_mode_and_expose_parity_defaults() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	var live_camera_row := instance.get("_mediapipe_live_camera_row") as VBoxContainer
+	var tracking_quality_row := instance.get("_mediapipe_tracking_quality_row") as VBoxContainer
+	var tracking_quality_option := instance.get("_mediapipe_tracking_quality_option") as OptionButton
+	assert_true(live_camera_row != null, "Testbed should create a dedicated live-camera picker row")
+	assert_true(tracking_quality_row != null, "Testbed should create a dedicated tracking-quality row")
+	assert_false(live_camera_row.visible, "Live-only camera picker should stay hidden while fake mode is active")
+	assert_false(tracking_quality_row.visible, "Live-only tracking quality should stay hidden while fake mode is active")
+	assert_eq(tracking_quality_option.item_count, 3, "Tracking quality should expose the three proving-flow parity options")
+	assert_eq(tracking_quality_option.get_item_text(0), "none")
+	assert_eq(tracking_quality_option.get_item_text(1), "optimized")
+	assert_eq(tracking_quality_option.get_item_text(2), "full")
+	assert_eq(String(instance.get("_selected_mediapipe_tracking_quality")), "full")
+
+func test_mediapipe_runtime_settings_include_live_camera_and_tracking_quality_tuning() -> void:
+	var packed_scene: PackedScene = load("res://scenes/camera_gesture_testbed.tscn")
+	var instance := packed_scene.instantiate()
+	add_child_autofree(instance)
+	instance.set("_selected_mediapipe_live_camera_id", "/dev/video2")
+	instance.set("_selected_mediapipe_tracking_quality", "optimized")
+	var live_settings := JSON.parse_string(String(instance.call("_mediapipe_start_settings_json_for_mode", "mediapipe_live"))) as Dictionary
+	assert_eq(String(live_settings.get("selected_camera_device_id", "")), "/dev/video2", "Live runtime should forward the selected camera device to the provider")
+	assert_eq(String(live_settings.get("tracking_overlay_mode", "")), "optimized", "Live runtime should forward the effective overlay mode")
+	assert_eq(int(live_settings.get("gesture_eval_interval_frames", 0)), 1, "Parity pass should keep the proving-flow gesture cadence truthful by default")
+	assert_almost_eq(float(live_settings.get("min_visibility", 0.0)), 0.35, 0.001, "Live runtime should forward the proving-flow min-visibility default")

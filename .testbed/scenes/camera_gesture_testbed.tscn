@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://64vvws0c8fdf"]
 
-[ext_resource type="Script" uid="uid://x70tlelhgy16" path="res://scripts/camera_gesture_testbed.gd" id="1_testbed"]
+[ext_resource type="Script" uid="uid://cj8y03nisn73m" path="res://scripts/camera_gesture_testbed.gd" id="1_testbed"]
 [ext_resource type="Script" uid="uid://cu0tnlnaanr0d" path="res://scripts/tracking_inset_overlay.gd" id="2_tracking"]
 
 [node name="CameraGestureTestbed" type="Control" unique_id=1176220401]

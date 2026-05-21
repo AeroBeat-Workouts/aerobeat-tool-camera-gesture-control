@@ -45,6 +45,24 @@ const SOURCE_OPTIONS := [SOURCE_MODE_FAKE, SOURCE_MODE_MEDIAPIPE_LIVE, SOURCE_MO
 const CONTROL_MODE_OPTIONS := ["gesture", "mouse_wasd", "disabled"]
 const SAMPLE_SOURCE_OPTIONS := ["head_position", "head_velocity", "head_rotation"]
 const TRACE_LEVEL_OPTIONS := ["off", "basic", "verbose"]
+const MEDIAPIPE_TRACKING_QUALITY_OPTIONS := ["none", "optimized", "full"]
+const MEDIAPIPE_TRACKING_QUALITY_PRESETS := {
+	"none": {
+		"min_visibility": 0.35,
+		"tracking_overlay_mode": "off",
+		"gesture_eval_interval_frames": 1,
+	},
+	"optimized": {
+		"min_visibility": 0.35,
+		"tracking_overlay_mode": "optimized",
+		"gesture_eval_interval_frames": 1,
+	},
+	"full": {
+		"min_visibility": 0.35,
+		"tracking_overlay_mode": "full",
+		"gesture_eval_interval_frames": 1,
+	},
+}
 const RECENT_TRACE_LIMIT := 10
 
 var _controller: CameraGestureController
@@ -58,12 +76,17 @@ var _tracking_label: Label
 var _profile_identity_label: Label
 var _trace_status_label: Label
 var _source_option: OptionButton
+var _mediapipe_live_camera_option: OptionButton
+var _mediapipe_tracking_quality_option: OptionButton
 var _profile_path_edit: LineEdit
 var _trace_export_root_edit: LineEdit
 var _fixture_key_edit: LineEdit
 var _fixture_video_path_edit: LineEdit
 var _fixture_sidecar_path_edit: LineEdit
 var _fixture_runtime_helper = null
+var _mediapipe_live_camera_row: VBoxContainer
+var _mediapipe_tracking_quality_row: VBoxContainer
+var _mediapipe_live_note_label: Label
 var _fixture_runtime_config := {}
 var _preview_stats_label: RichTextLabel
 var _runtime_debug_label: RichTextLabel
@@ -95,6 +118,11 @@ var _mediapipe_owned_session_key := ""
 var _mediapipe_borrowed_session_key := ""
 var _mediapipe_session_owner_id := ""
 var _mediapipe_session_metadata := {}
+var _mediapipe_available_camera_devices: Array = []
+var _selected_mediapipe_live_camera_id := "0"
+var _selected_mediapipe_tracking_quality := "full"
+var _suppress_mediapipe_live_camera_signal := false
+var _suppress_mediapipe_tracking_quality_signal := false
 var _source_mode := SOURCE_MODE_FAKE
 var _latest_provider_state := {}
 var _latest_source_snapshot := {}
@@ -272,6 +300,26 @@ func _populate_layout_controls() -> void:
 	profile_buttons_bottom.add_child(_make_button("Reset runtime defaults", _reset_profile))
 
 	_source_option = _add_option(_source_section_content, "Input source", SOURCE_OPTIONS, _on_source_mode_selected)
+
+	_mediapipe_live_camera_option = OptionButton.new()
+	_mediapipe_live_camera_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_mediapipe_live_camera_option.item_selected.connect(_on_mediapipe_live_camera_selected)
+	_mediapipe_live_camera_row = _labeled_control("Live camera", _mediapipe_live_camera_option)
+	_source_section_content.add_child(_mediapipe_live_camera_row)
+
+	_mediapipe_tracking_quality_option = OptionButton.new()
+	_mediapipe_tracking_quality_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for quality in MEDIAPIPE_TRACKING_QUALITY_OPTIONS:
+		_mediapipe_tracking_quality_option.add_item(quality)
+	_mediapipe_tracking_quality_option.item_selected.connect(_on_mediapipe_tracking_quality_selected)
+	_mediapipe_tracking_quality_row = _labeled_control("Tracking quality", _mediapipe_tracking_quality_option)
+	_source_section_content.add_child(_mediapipe_tracking_quality_row)
+
+	_mediapipe_live_note_label = Label.new()
+	_mediapipe_live_note_label.text = "Live webcam parity controls mirror the proving flow camera source + tracking overlay tuning."
+	_mediapipe_live_note_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_source_section_content.add_child(_mediapipe_live_note_label)
+	_set_option_value(_mediapipe_tracking_quality_option, _selected_mediapipe_tracking_quality)
 	_fixture_key_edit = LineEdit.new()
 	_fixture_key_edit.name = "FixtureKeyEdit"
 	_fixture_key_edit.placeholder_text = "Fixture key / intent family"
@@ -495,7 +543,9 @@ func _switch_input_source(mode: String) -> void:
 			_current_input_source = _fake_input_source
 			_controller.attach_input_source(_fake_input_source)
 			_update_status("Using fake input source")
-	_source_label.text = "Input source: %s" % _source_mode_label(_source_mode)
+	_source_label.text = _build_source_status_line()
+	_refresh_mediapipe_live_controls_visibility()
+	_refresh_mediapipe_live_control_values()
 	for control in _fake_controls.values():
 		control.visible = _current_input_source == _fake_input_source
 	_refresh_media_inset_surface()
@@ -546,10 +596,25 @@ func _load_provider_session_registry():
 func _ensure_mediapipe_input_source(requested_mode: String) -> bool:
 	if _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source):
 		if _mediapipe_input_source_is_borrowed:
-			var borrowed_mode := str(_mediapipe_session_metadata.get("runtime_mode", ""))
-			if borrowed_mode.is_empty() or borrowed_mode == _source_mode_runtime_label(requested_mode):
+			var requested_metadata := _build_mediapipe_session_metadata_for_mode(requested_mode)
+			var borrowed_runtime_mode := str(_mediapipe_session_metadata.get("runtime_mode", "")).strip_edges()
+			var borrowed_camera := str(_mediapipe_session_metadata.get("camera_source", "")).strip_edges()
+			var borrowed_overlay_mode := str(_mediapipe_session_metadata.get("tracking_overlay_mode", "")).strip_edges()
+			var borrowed_interval := int(_mediapipe_session_metadata.get("gesture_eval_interval_frames", 1))
+			var borrowed_matches_request := false
+			if borrowed_runtime_mode.is_empty() or borrowed_runtime_mode == _source_mode_runtime_label(requested_mode):
+				borrowed_matches_request = (
+					borrowed_camera == str(requested_metadata.get("camera_source", "")).strip_edges()
+					and borrowed_overlay_mode == str(requested_metadata.get("tracking_overlay_mode", "")).strip_edges()
+					and borrowed_interval == int(requested_metadata.get("gesture_eval_interval_frames", 1))
+				)
+			if borrowed_matches_request:
 				return true
+			_release_borrowed_mediapipe_session()
 		else:
+			_apply_local_mediapipe_runtime_settings(requested_mode)
+			_apply_mediapipe_session_metadata({"metadata": _build_mediapipe_session_metadata_for_mode(requested_mode)})
+			_publish_owned_mediapipe_session()
 			return true
 	if _try_acquire_shared_mediapipe_session(requested_mode):
 		return true
@@ -557,8 +622,19 @@ func _ensure_mediapipe_input_source(requested_mode: String) -> bool:
 
 func _try_acquire_shared_mediapipe_session(requested_mode: String) -> bool:
 	if _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source) and _mediapipe_input_source_is_borrowed:
+		var requested_metadata := _build_mediapipe_session_metadata_for_mode(requested_mode)
 		var borrowed_runtime_mode := str(_mediapipe_session_metadata.get("runtime_mode", "")).strip_edges()
+		var borrowed_camera := str(_mediapipe_session_metadata.get("camera_source", "")).strip_edges()
+		var borrowed_overlay_mode := str(_mediapipe_session_metadata.get("tracking_overlay_mode", "")).strip_edges()
+		var borrowed_interval := int(_mediapipe_session_metadata.get("gesture_eval_interval_frames", 1))
+		var borrowed_matches_request := false
 		if borrowed_runtime_mode.is_empty() or borrowed_runtime_mode == _source_mode_runtime_label(requested_mode):
+			borrowed_matches_request = (
+				borrowed_camera == str(requested_metadata.get("camera_source", "")).strip_edges()
+				and borrowed_overlay_mode == str(requested_metadata.get("tracking_overlay_mode", "")).strip_edges()
+				and borrowed_interval == int(requested_metadata.get("gesture_eval_interval_frames", 1))
+			)
+		if borrowed_matches_request:
 			return true
 		_release_borrowed_mediapipe_session()
 	var registry = _load_provider_session_registry()
@@ -569,13 +645,13 @@ func _try_acquire_shared_mediapipe_session(requested_mode: String) -> bool:
 		"provider_id": "mediapipe_python",
 		"metadata_match": {
 			"runtime_mode": str(requested_metadata.get("runtime_mode", "")),
+			"camera_source": str(requested_metadata.get("camera_source", "")),
+			"tracking_overlay_mode": str(requested_metadata.get("tracking_overlay_mode", "")),
+			"gesture_eval_interval_frames": int(requested_metadata.get("gesture_eval_interval_frames", 1)),
+			"min_visibility": float(requested_metadata.get("min_visibility", 0.35)),
 		},
 	}
-	if requested_mode == SOURCE_MODE_MEDIAPIPE_REPLAY:
-		request_filters["metadata_match"]["camera_source"] = str(requested_metadata.get("camera_source", ""))
 	var request: Dictionary = registry.request_session(request_filters)
-	if not bool(request.get("ok", false)) and requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE:
-		request = registry.request_session({"provider_id": "mediapipe_python"})
 	if not bool(request.get("ok", false)):
 		return false
 	var session: Dictionary = request.get("session", {}) if request.get("session", {}) is Dictionary else {}
@@ -597,6 +673,7 @@ func _try_acquire_shared_mediapipe_session(requested_mode: String) -> bool:
 		registry.release_session(MEDIAPIPE_SESSION_CONSUMER_ID, session_key)
 		return false
 	_disconnect_mediapipe_backend_if_possible()
+	_disconnect_mediapipe_input_source_signals(_mediapipe_input_source)
 	_reset_mediapipe_autostart_manager()
 	_mediapipe_input_source = shared_provider
 	_mediapipe_input_source_is_borrowed = true
@@ -604,6 +681,7 @@ func _try_acquire_shared_mediapipe_session(requested_mode: String) -> bool:
 	_mediapipe_owned_session_key = ""
 	_mediapipe_session_owner_id = str(acquired_session.get("owner_id", "")).strip_edges()
 	_apply_mediapipe_session_metadata(acquired_session)
+	_connect_mediapipe_input_source_signals(_mediapipe_input_source)
 	_wire_mediapipe_backend_if_possible()
 	return true
 
@@ -619,6 +697,7 @@ func _start_local_mediapipe_input_source(requested_mode: String) -> bool:
 	if script == null:
 		return false
 	_disconnect_mediapipe_backend_if_possible()
+	_disconnect_mediapipe_input_source_signals(_mediapipe_input_source)
 	var local_input_source: Node = script.new()
 	local_input_source.name = "MediaPipePythonInputSource"
 	add_child(local_input_source)
@@ -633,6 +712,7 @@ func _start_local_mediapipe_input_source(requested_mode: String) -> bool:
 	_mediapipe_borrowed_session_key = ""
 	_mediapipe_session_owner_id = MEDIAPIPE_SESSION_OWNER_ID
 	_apply_mediapipe_session_metadata({"metadata": _build_mediapipe_session_metadata_for_mode(requested_mode)})
+	_connect_mediapipe_input_source_signals(_mediapipe_input_source)
 	_wire_mediapipe_backend_if_possible()
 	_publish_owned_mediapipe_session()
 	return true
@@ -669,6 +749,7 @@ func _release_borrowed_mediapipe_session() -> void:
 	if registry != null and not borrowed_session_key.is_empty():
 		registry.release_session(MEDIAPIPE_SESSION_CONSUMER_ID, borrowed_session_key)
 	_disconnect_mediapipe_backend_if_possible()
+	_disconnect_mediapipe_input_source_signals(_mediapipe_input_source)
 	_mediapipe_input_source = null
 	_mediapipe_input_source_is_borrowed = false
 	_mediapipe_borrowed_session_key = ""
@@ -687,6 +768,7 @@ func _teardown_mediapipe_runtime() -> void:
 	if registry != null and not _mediapipe_owned_session_key.is_empty():
 		registry.unpublish_session(MEDIAPIPE_SESSION_OWNER_ID, _mediapipe_owned_session_key)
 	_disconnect_mediapipe_backend_if_possible()
+	_disconnect_mediapipe_input_source_signals(owned_source)
 	if owned_source.has_method("stop"):
 		owned_source.stop()
 	if owned_source.get_parent() == self:
@@ -711,6 +793,9 @@ func _disconnect_mediapipe_backend_if_possible() -> void:
 		_mediapipe_camera_view.update_overlay([])
 
 func _ensure_mediapipe_runtime_for_active_source() -> void:
+	_selected_mediapipe_live_camera_id = _normalize_live_camera_selection(str(_mediapipe_session_metadata.get("camera_source", _selected_mediapipe_live_camera_id)))
+	_selected_mediapipe_tracking_quality = _normalize_tracking_quality_value(str(_mediapipe_session_metadata.get("tracking_quality", _selected_mediapipe_tracking_quality)))
+	_refresh_mediapipe_live_control_values()
 	_configure_mediapipe_camera_view_for_mode(_source_mode)
 	if not _is_mediapipe_mode(_source_mode):
 		return
@@ -776,6 +861,8 @@ func _ensure_mediapipe_autostart_manager(requested_mode: String) -> bool:
 	if _mediapipe_autostart_manager.has_signal("check_progress"):
 		_mediapipe_autostart_manager.check_progress.connect(_on_mediapipe_server_progress)
 	add_child(_mediapipe_autostart_manager)
+	var tracking_quality_settings := _current_mediapipe_tracking_quality_settings()
+	_mediapipe_autostart_manager.tracking_overlay_mode = str(tracking_quality_settings.get("tracking_overlay_mode", "full"))
 	_mediapipe_runtime_signature = _build_mediapipe_runtime_signature(requested_mode)
 	return true
 
@@ -786,15 +873,24 @@ func _reset_mediapipe_autostart_manager() -> void:
 	_mediapipe_runtime_signature = ""
 
 func _requested_mediapipe_camera_source_override(requested_mode: String) -> String:
-	if requested_mode != SOURCE_MODE_MEDIAPIPE_REPLAY:
-		return ""
-	var effective_video: Dictionary = _fixture_runtime_config.get("effective_video", {}) if _fixture_runtime_config.get("effective_video", {}) is Dictionary else {}
-	return str(effective_video.get("display_path", "")).strip_edges()
+	if requested_mode == SOURCE_MODE_MEDIAPIPE_REPLAY:
+		var effective_video: Dictionary = _fixture_runtime_config.get("effective_video", {}) if _fixture_runtime_config.get("effective_video", {}) is Dictionary else {}
+		return str(effective_video.get("display_path", "")).strip_edges()
+	return _selected_mediapipe_live_camera_id.strip_edges()
 
 func _mediapipe_start_settings_json_for_mode(requested_mode: String) -> String:
-	return JSON.stringify({
+	var settings := {
 		"flip_horizontal": requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE,
-	})
+	}
+	if requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE:
+		var tracking_quality_settings := _current_mediapipe_tracking_quality_settings()
+		settings["min_visibility"] = tracking_quality_settings.get("min_visibility", 0.35)
+		settings["tracking_overlay_mode"] = tracking_quality_settings.get("tracking_overlay_mode", "full")
+		settings["gesture_eval_interval_frames"] = tracking_quality_settings.get("gesture_eval_interval_frames", 1)
+		var selected_camera_id := _selected_mediapipe_live_camera_id.strip_edges()
+		if not selected_camera_id.is_empty():
+			settings["selected_camera_device_id"] = selected_camera_id
+	return JSON.stringify(settings)
 
 func _apply_local_mediapipe_runtime_settings(requested_mode: String) -> void:
 	if _mediapipe_input_source == null or not is_instance_valid(_mediapipe_input_source):
@@ -803,7 +899,13 @@ func _apply_local_mediapipe_runtime_settings(requested_mode: String) -> void:
 		_mediapipe_input_source.call("_apply_settings", _mediapipe_start_settings_json_for_mode(requested_mode))
 
 func _build_mediapipe_runtime_signature(requested_mode: String) -> String:
-	return "%s|%s" % [requested_mode, _requested_mediapipe_camera_source_override(requested_mode)]
+	var tracking_quality_settings := _current_mediapipe_tracking_quality_settings() if requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE else {}
+	return "%s|%s|%s|%s" % [
+		requested_mode,
+		_requested_mediapipe_camera_source_override(requested_mode),
+		str(tracking_quality_settings.get("tracking_overlay_mode", "")),
+		str(tracking_quality_settings.get("gesture_eval_interval_frames", "")),
+	]
 
 func _default_mediapipe_session_metadata() -> Dictionary:
 	return _build_mediapipe_session_metadata_for_mode(_source_mode)
@@ -815,9 +917,14 @@ func _build_mediapipe_session_metadata_for_mode(requested_mode: String) -> Dicti
 		requested_source = "0"
 	var effective_video: Dictionary = _fixture_runtime_config.get("effective_video", {}) if _fixture_runtime_config.get("effective_video", {}) is Dictionary else {}
 	var sidecar: Dictionary = _fixture_runtime_config.get("sidecar", {}) if _fixture_runtime_config.get("sidecar", {}) is Dictionary else {}
+	var tracking_quality_settings := _current_mediapipe_tracking_quality_settings() if requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE else {
+		"min_visibility": 0.35,
+		"tracking_overlay_mode": "full",
+		"gesture_eval_interval_frames": 1,
+	}
 	return {
 		"lane": "camera_gesture_testbed",
-		"device": "camera0" if runtime_label == "live" else "fixture_video",
+		"device": requested_source if runtime_label == "live" else "fixture_video",
 		"stream_url": DEFAULT_MEDIAPIPE_STREAM_URL,
 		"runtime_mode": runtime_label,
 		"camera_source": requested_source,
@@ -826,16 +933,25 @@ func _build_mediapipe_session_metadata_for_mode(requested_mode: String) -> Dicti
 		"fixture_sidecar_path": str(sidecar.get("display_path", _fixture_sidecar_path_edit.text.strip_edges())),
 		"sample_source_hint": str(_fixture_runtime_config.get("sample_source_hint", "")),
 		"source_mode": requested_mode,
+		"tracking_quality": _selected_mediapipe_tracking_quality,
+		"min_visibility": float(tracking_quality_settings.get("min_visibility", 0.35)),
+		"tracking_overlay_mode": str(tracking_quality_settings.get("tracking_overlay_mode", "full")),
+		"gesture_eval_interval_frames": int(tracking_quality_settings.get("gesture_eval_interval_frames", 1)),
 	}
 
 func _apply_mediapipe_session_metadata(session_record: Dictionary) -> void:
 	var metadata: Dictionary = session_record.get("metadata", {}) if session_record.get("metadata", {}) is Dictionary else {}
 	_mediapipe_session_metadata = metadata.duplicate(true)
+	_selected_mediapipe_live_camera_id = _normalize_live_camera_selection(str(_mediapipe_session_metadata.get("camera_source", _selected_mediapipe_live_camera_id)))
+	_selected_mediapipe_tracking_quality = _normalize_tracking_quality_value(str(_mediapipe_session_metadata.get("tracking_quality", _selected_mediapipe_tracking_quality)))
 	var stream_url := str(_mediapipe_session_metadata.get("stream_url", DEFAULT_MEDIAPIPE_STREAM_URL)).strip_edges()
 	if stream_url.is_empty():
 		stream_url = DEFAULT_MEDIAPIPE_STREAM_URL
 	if _mediapipe_camera_view != null:
 		_mediapipe_camera_view.stream_url = stream_url
+	_refresh_mediapipe_live_control_values()
+	if _source_label != null:
+		_source_label.text = _build_source_status_line()
 	_configure_mediapipe_camera_view_for_mode(_source_mode)
 
 func _configure_mediapipe_camera_view_for_mode(mode: String) -> void:
@@ -875,6 +991,157 @@ func _source_mode_label(mode: String) -> String:
 			return "MediaPipe replay"
 		_:
 			return "Fake"
+
+func _current_mediapipe_tracking_quality_settings() -> Dictionary:
+	var quality := _normalize_tracking_quality_value(_selected_mediapipe_tracking_quality)
+	var preset: Variant = MEDIAPIPE_TRACKING_QUALITY_PRESETS.get(quality, MEDIAPIPE_TRACKING_QUALITY_PRESETS["full"])
+	return preset.duplicate(true) if preset is Dictionary else {}
+
+func _normalize_tracking_quality_value(value: String) -> String:
+	var normalized := value.strip_edges().to_lower()
+	return normalized if MEDIAPIPE_TRACKING_QUALITY_OPTIONS.has(normalized) else "full"
+
+func _normalize_live_camera_selection(value: String) -> String:
+	var normalized := value.strip_edges()
+	return "0" if normalized.is_empty() else normalized
+
+func _refresh_mediapipe_live_controls_visibility() -> void:
+	var show_live_controls := _source_mode == SOURCE_MODE_MEDIAPIPE_LIVE
+	if _mediapipe_live_camera_row != null:
+		_mediapipe_live_camera_row.visible = show_live_controls
+	if _mediapipe_tracking_quality_row != null:
+		_mediapipe_tracking_quality_row.visible = show_live_controls
+	if _mediapipe_live_note_label != null:
+		_mediapipe_live_note_label.visible = show_live_controls
+
+func _refresh_mediapipe_live_control_values() -> void:
+	if _mediapipe_live_camera_option != null:
+		_populate_mediapipe_live_camera_picker()
+	if _mediapipe_tracking_quality_option != null:
+		_suppress_mediapipe_tracking_quality_signal = true
+		_set_option_value(_mediapipe_tracking_quality_option, _normalize_tracking_quality_value(_selected_mediapipe_tracking_quality))
+		_suppress_mediapipe_tracking_quality_signal = false
+
+func _refresh_mediapipe_available_camera_devices() -> void:
+	var devices: Array = []
+	if _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source) and _mediapipe_input_source.has_method("get_available_camera_devices"):
+		devices = _mediapipe_input_source.get_available_camera_devices()
+	if devices.is_empty():
+		var fallback_id := _normalize_live_camera_selection(str(_mediapipe_session_metadata.get("camera_source", _selected_mediapipe_live_camera_id)))
+		devices.append({
+			"id": fallback_id,
+			"label": "Default camera" if fallback_id == "0" else fallback_id.get_file(),
+		})
+	_mediapipe_available_camera_devices = devices.duplicate(true)
+	if not _camera_device_list_has_id(_mediapipe_available_camera_devices, _selected_mediapipe_live_camera_id):
+		_selected_mediapipe_live_camera_id = _first_camera_device_id(_mediapipe_available_camera_devices)
+
+func _camera_device_list_has_id(devices: Array, device_id: String) -> bool:
+	for device_variant: Variant in devices:
+		if not device_variant is Dictionary:
+			continue
+		if str((device_variant as Dictionary).get("id", "")).strip_edges() == device_id:
+			return true
+	return false
+
+func _first_camera_device_id(devices: Array) -> String:
+	for device_variant: Variant in devices:
+		if not device_variant is Dictionary:
+			continue
+		var device_id := str((device_variant as Dictionary).get("id", "")).strip_edges()
+		if not device_id.is_empty():
+			return device_id
+	return "0"
+
+func _populate_mediapipe_live_camera_picker() -> void:
+	if _mediapipe_live_camera_option == null:
+		return
+	_refresh_mediapipe_available_camera_devices()
+	_suppress_mediapipe_live_camera_signal = true
+	_mediapipe_live_camera_option.clear()
+	var selected_index := -1
+	for index: int in range(_mediapipe_available_camera_devices.size()):
+		var device_variant: Variant = _mediapipe_available_camera_devices[index]
+		if not device_variant is Dictionary:
+			continue
+		var device: Dictionary = device_variant
+		var device_id := str(device.get("id", "")).strip_edges()
+		_mediapipe_live_camera_option.add_item(_camera_device_label(device))
+		var item_index := _mediapipe_live_camera_option.item_count - 1
+		_mediapipe_live_camera_option.set_item_metadata(item_index, device_id)
+		_mediapipe_live_camera_option.set_item_tooltip(item_index, device_id)
+		if device_id == _selected_mediapipe_live_camera_id:
+			selected_index = item_index
+	if selected_index == -1 and _mediapipe_live_camera_option.item_count > 0:
+		selected_index = 0
+		_selected_mediapipe_live_camera_id = _normalize_live_camera_selection(str(_mediapipe_live_camera_option.get_item_metadata(0)))
+	if selected_index >= 0:
+		_mediapipe_live_camera_option.select(selected_index)
+	_suppress_mediapipe_live_camera_signal = false
+
+func _camera_device_label(device: Dictionary) -> String:
+	var label := str(device.get("label", "")).strip_edges()
+	var device_id := str(device.get("id", "")).strip_edges()
+	if label.is_empty():
+		label = "Default camera" if device_id == "0" else device_id
+	if label == device_id or device_id.is_empty():
+		return label
+	return "%s (%s)" % [label, device_id]
+
+func _get_selected_mediapipe_live_camera_option_id() -> String:
+	if _mediapipe_live_camera_option == null or _mediapipe_live_camera_option.selected < 0 or _mediapipe_live_camera_option.selected >= _mediapipe_live_camera_option.item_count:
+		return _selected_mediapipe_live_camera_id
+	return str(_mediapipe_live_camera_option.get_item_metadata(_mediapipe_live_camera_option.selected)).strip_edges()
+
+func _build_active_camera_text() -> String:
+	if _source_mode == SOURCE_MODE_MEDIAPIPE_REPLAY:
+		var effective_video: Dictionary = _fixture_runtime_config.get("effective_video", {}) if _fixture_runtime_config.get("effective_video", {}) is Dictionary else {}
+		return str(effective_video.get("display_path", _fixture_video_path_edit.text.strip_edges()))
+	var camera_id := _normalize_live_camera_selection(str(_mediapipe_session_metadata.get("camera_source", _selected_mediapipe_live_camera_id))) if _source_mode == SOURCE_MODE_MEDIAPIPE_LIVE else _selected_mediapipe_live_camera_id
+	for device_variant: Variant in _mediapipe_available_camera_devices:
+		if device_variant is Dictionary and str((device_variant as Dictionary).get("id", "")).strip_edges() == camera_id:
+			return _camera_device_label(device_variant as Dictionary)
+	return "Default camera" if camera_id == "0" else camera_id
+
+func _build_tracking_quality_compact_text() -> String:
+	return _normalize_tracking_quality_value(str(_mediapipe_session_metadata.get("tracking_quality", _selected_mediapipe_tracking_quality)))
+
+func _build_tracking_quality_summary_text() -> String:
+	var settings := _current_mediapipe_tracking_quality_settings()
+	return "%s (overlay=%s, min_visibility=%.2f, gesture_every=%s frame%s)" % [
+		_build_tracking_quality_compact_text(),
+		str(_mediapipe_session_metadata.get("tracking_overlay_mode", settings.get("tracking_overlay_mode", "full"))),
+		float(_mediapipe_session_metadata.get("min_visibility", settings.get("min_visibility", 0.35))),
+		str(_mediapipe_session_metadata.get("gesture_eval_interval_frames", settings.get("gesture_eval_interval_frames", 1))),
+		"" if int(_mediapipe_session_metadata.get("gesture_eval_interval_frames", settings.get("gesture_eval_interval_frames", 1))) == 1 else "s",
+	]
+
+func _build_source_status_line() -> String:
+	if _source_mode == SOURCE_MODE_MEDIAPIPE_LIVE:
+		return "Input source: %s | camera %s | %s" % [_source_mode_label(_source_mode), _build_active_camera_text(), _build_tracking_quality_compact_text()]
+	if _source_mode == SOURCE_MODE_MEDIAPIPE_REPLAY:
+		return "Input source: %s | replay %s" % [_source_mode_label(_source_mode), _build_active_camera_text()]
+	return "Input source: %s" % _source_mode_label(_source_mode)
+
+func _connect_mediapipe_input_source_signals(source: Node) -> void:
+	if source == null or not is_instance_valid(source):
+		return
+	var callable := Callable(self, "_on_mediapipe_camera_devices_changed")
+	if source.has_signal("camera_devices_changed") and not source.is_connected(&"camera_devices_changed", callable):
+		source.connect(&"camera_devices_changed", callable)
+
+func _disconnect_mediapipe_input_source_signals(source: Node) -> void:
+	if source == null or not is_instance_valid(source):
+		return
+	var callable := Callable(self, "_on_mediapipe_camera_devices_changed")
+	if source.has_signal("camera_devices_changed") and source.is_connected(&"camera_devices_changed", callable):
+		source.disconnect(&"camera_devices_changed", callable)
+
+func _on_mediapipe_camera_devices_changed(devices: Array, selected_device_id: String) -> void:
+	_mediapipe_available_camera_devices = devices.duplicate(true)
+	_selected_mediapipe_live_camera_id = _normalize_live_camera_selection(selected_device_id if not selected_device_id.strip_edges().is_empty() else _selected_mediapipe_live_camera_id)
+	_refresh_mediapipe_live_control_values()
+	_source_label.text = _build_source_status_line()
 
 func _load_default_profile_on_boot() -> void:
 	var default_path := _default_profile_absolute_path()
@@ -1019,6 +1286,7 @@ func _remember_recent_trace_frame(debug_state: Dictionary, source_snapshot: Dict
 		_recent_trace_frames.remove_at(0)
 
 func _collect_source_snapshot() -> Dictionary:
+	var tracking_quality_settings := _current_mediapipe_tracking_quality_settings()
 	var snapshot := {
 		"source_mode": _source_mode,
 		"source_mode_label": _source_mode_label(_source_mode),
@@ -1030,6 +1298,9 @@ func _collect_source_snapshot() -> Dictionary:
 		"runtime_mode": _source_mode_runtime_label(_source_mode) if _is_mediapipe_mode(_source_mode) else "fake",
 		"fixture_key": _fixture_key_edit.text.strip_edges(),
 		"fixture_runtime_ready": bool(_fixture_runtime_config.get("runtime_ready", false)),
+		"live_camera_id": _selected_mediapipe_live_camera_id,
+		"tracking_quality": _selected_mediapipe_tracking_quality,
+		"tracking_quality_settings": tracking_quality_settings.duplicate(true),
 	}
 	if _current_input_source != null and _current_input_source.has_method("get_head_position"):
 		snapshot["head_position"] = _coerce_vector3(_current_input_source.get_head_position())
@@ -1090,7 +1361,11 @@ func _build_mediapipe_session_debug_state() -> Dictionary:
 		"fixture_key": str(_mediapipe_session_metadata.get("fixture_key", "")),
 		"runtime_status": _mediapipe_runtime_status,
 		"runtime_last_error": _mediapipe_runtime_last_error,
-		"known_limitation": "cross-lane duplicate prevention only works when the owner lane publishes a session through AeroProviderSessionRegistry",
+		"tracking_quality": str(_mediapipe_session_metadata.get("tracking_quality", _selected_mediapipe_tracking_quality)),
+		"min_visibility": float(_mediapipe_session_metadata.get("min_visibility", _current_mediapipe_tracking_quality_settings().get("min_visibility", 0.35))),
+		"tracking_overlay_mode": str(_mediapipe_session_metadata.get("tracking_overlay_mode", _current_mediapipe_tracking_quality_settings().get("tracking_overlay_mode", "full"))),
+		"gesture_eval_interval_frames": int(_mediapipe_session_metadata.get("gesture_eval_interval_frames", _current_mediapipe_tracking_quality_settings().get("gesture_eval_interval_frames", 1))),
+		"known_limitation": "cross-lane duplicate prevention only works when the owner lane publishes a session through AeroProviderSessionRegistry with matching camera/tuning metadata",
 	}
 
 func _read_current_source_confidence() -> float:
@@ -1174,9 +1449,11 @@ func _update_debug_surfaces() -> void:
 		int(trace_status.get("frame_count", 0)),
 		_trace_export_root_edit.text,
 	]
-	_preview_stats_label.text = "Source: %s\nRuntime: %s\nTranslation: %s\nRotation(deg): %s" % [
+	_preview_stats_label.text = "Source: %s\nRuntime: %s\nCamera: %s\nTracking quality: %s\nTranslation: %s\nRotation(deg): %s" % [
 		_source_mode_label(_source_mode),
 		_mediapipe_runtime_status,
+		_build_active_camera_text(),
+		_build_tracking_quality_summary_text(),
 		current_translation,
 		Vector3(rad_to_deg(current_rotation.x), rad_to_deg(current_rotation.y), rad_to_deg(current_rotation.z)),
 	]
@@ -1192,6 +1469,8 @@ func _build_runtime_debug_text(debug_state: Dictionary) -> String:
 		"Mode: %s" % str(debug_state.get("control_mode", "")),
 		"Input source mode: %s" % _source_mode_label(_source_mode),
 		"MediaPipe runtime: %s" % _mediapipe_runtime_status,
+		"Active camera: %s" % _build_active_camera_text(),
+		"Tracking quality: %s" % _build_tracking_quality_summary_text(),
 		"Enabled: %s" % str(debug_state.get("enabled", false)),
 		"Camera attached: %s (%s)" % [str(debug_state.get("camera_attached", false)), str(debug_state.get("camera_path", ""))],
 		"Input source attached: %s (%s)" % [str(debug_state.get("input_source_attached", false)), str(debug_state.get("input_source_path", ""))],
@@ -1289,9 +1568,9 @@ func _build_media_inset_status_line() -> String:
 	if _source_mode == SOURCE_MODE_FAKE:
 		return "Inset: fake source preview with tracking overlay"
 	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming()):
-		return "Inset: %s feed live + tracking overlay" % _source_mode_label(_source_mode)
+		return "Inset: %s feed live + tracking overlay (%s)" % [_source_mode_label(_source_mode), _build_tracking_quality_compact_text()]
 	if _mediapipe_camera_view != null:
-		return "Inset: %s requested, waiting for stream (%s)" % [_source_mode_label(_source_mode), _mediapipe_runtime_status]
+		return "Inset: %s requested, waiting for stream (%s | %s)" % [_source_mode_label(_source_mode), _build_active_camera_text(), _mediapipe_runtime_status]
 	return "Inset: MediaPipe camera view seam unavailable; overlay-only fallback"
 
 func _refresh_media_inset_surface() -> void:
@@ -1323,7 +1602,8 @@ func _build_media_placeholder_text() -> String:
 	if _source_mode == SOURCE_MODE_MEDIAPIPE_REPLAY:
 		var effective_video: Dictionary = _fixture_runtime_config.get("effective_video", {}) if _fixture_runtime_config.get("effective_video", {}) is Dictionary else {}
 		return "MediaPipe replay selected\nWaiting for fixture stream: %s" % str(effective_video.get("display_path", _fixture_video_path_edit.text.strip_edges()))
-	return "MediaPipe live selected\nWaiting for live camera preview stream."
+	return "MediaPipe live selected
+Waiting for live camera preview stream from %s." % _build_active_camera_text()
 
 func _ensure_mediapipe_camera_view_if_possible() -> void:
 	if not ResourceLoader.exists(MEDIAPIPE_CAMERA_VIEW_PATH):
@@ -1539,6 +1819,26 @@ func _on_fake_control_changed() -> void:
 
 func _on_source_mode_selected() -> void:
 	_switch_input_source(_get_option_value(_source_option))
+
+func _on_mediapipe_live_camera_selected(_index: int) -> void:
+	if _suppress_mediapipe_live_camera_signal or _mediapipe_live_camera_option == null:
+		return
+	_selected_mediapipe_live_camera_id = _normalize_live_camera_selection(_get_selected_mediapipe_live_camera_option_id())
+	_refresh_mediapipe_live_control_values()
+	if _source_mode == SOURCE_MODE_MEDIAPIPE_LIVE:
+		_apply_source_runtime_selection()
+	else:
+		_update_status("Selected live camera %s" % _build_active_camera_text())
+
+func _on_mediapipe_tracking_quality_selected(_index: int) -> void:
+	if _suppress_mediapipe_tracking_quality_signal or _mediapipe_tracking_quality_option == null:
+		return
+	_selected_mediapipe_tracking_quality = _normalize_tracking_quality_value(_get_option_value(_mediapipe_tracking_quality_option))
+	_refresh_mediapipe_live_control_values()
+	if _source_mode == SOURCE_MODE_MEDIAPIPE_LIVE:
+		_apply_source_runtime_selection()
+	else:
+		_update_status("Tracking quality ready: %s" % _build_tracking_quality_summary_text())
 
 func _on_media_inset_toggle_toggled(pressed: bool) -> void:
 	_apply_media_inset_visibility(pressed)
