@@ -22,8 +22,6 @@ class FakeBackend:
 class FakeSharedProvider:
 	extends AeroInputProvider
 
-	signal camera_devices_changed(devices: Array, selected_device_id: String)
-
 	var tracking := true
 	var head_position := Vector3(0.62, 0.48, 0.05)
 	var stop_count := 0
