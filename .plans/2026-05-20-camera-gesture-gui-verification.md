@@ -554,14 +554,24 @@ The diagnostic UI polish stayed scene-first in the camera-gesture testbed. `/.te
 
 **Status:** ⚠️ Partial
 
-**What We Built:** The camera-gesture `.testbed` now consumes `aerobeat-tool-headless-manager` through GodotEnv and autoloads it truthfully, with repo-local tests guarding that contract. The GUI verification lane also produced real evidence that fake mode runs, the normal Stop Running Project path reaches clean debugger teardown, and a graceful editor close succeeds after teardown.
+**What We Built:** This session turned the camera-gesture `.testbed` into a much more truthful and inspectable diagnostic harness. It now autoloads `aerobeat-tool-headless-manager` truthfully for approved headless lanes, uses the restored addon-local runtime-install flow for `aerobeat-input-mediapipe-python`, and has a scene-authored responsive 16:9 UI with larger but controlled diagnostic surfaces, direct scene margins for debug text, hideable debug tabs, and a larger collapsible media preview anchored bottom-right for replay-vs-landmark comparison. Source-side replay fixes also landed for mirrored-overlay alignment, model-asset resolution against the mounted addon root, and a controller fallback that restores visible rotational response for current `head_rotation`-driven replay fixtures.
 
-**Reference Check:** `REF-02` and `REF-05` are satisfied for the integration truth: the consumer wiring is present and the headless-manager contract remains explicitly headless-only. `REF-03` is **not yet satisfied** for replay verification because no GUI evidence proves the prerecorded fixture path was actually selected and run. `REF-01` is only partially satisfied because the intended live/replay truth pass and the first real trace export still did not happen.
+**Reference Check:** `REF-02` and `REF-05` are satisfied for the integration truth: the consumer wiring is present and the headless-manager contract remains explicitly headless-only. `REF-03` is now partially satisfied at the source-fix level: prerecorded fixture loading works, replay alignment/config bugs were addressed, and the addon runtime-install contract is restored, but final GUI truth for clip quality, overlay accuracy, and 3D response still depends on Derrick’s manual verification. `REF-01` is partially satisfied because the intended live/replay truth pass remains manual for this session and the first trustworthy trace export / final polarity call still has not been recorded.
 
 **Commits:**
-- No new auditor commit; audited current working tree state and evidence only.
+- `1ccf0a4` - `Integrate headless manager into camera gesture testbed`
+- `dab9715` - `Fix replay startup race in camera gesture testbed`
+- `1987f4a` - `Use local MediaPipe addon runtime in camera gesture testbed` *(later intentionally superseded as the wrong contract fix)*
+- `6d4313e` - `Restore addon runtime install flow`
+- `42be47f` - `Rebalance camera gesture testbed layout`
+- `7e5fcf7` - `Fix desktop runtime model asset resolution`
+- `50779c9` - `Rework camera gesture testbed for responsive 16:9 UI`
+- `46e27ef` - `Add scene-authored margins for debug tabs`
+- `724a311` - `Fix replay landmark alignment and camera response`
+- `f3b2723` - `Improve camera gesture diagnostic UI`
+- `f48b614` - `Polish camera gesture minimize controls`
 
-**Lessons Learned:** The safe-close improvement is worth keeping, but it does not remove the need for the normal GUI stop path because the current manager intentionally does not arm in windowed editor sessions. Also, the camera-gesture lane now has trace-export scaffolding ready, but any claim about forward/backward `translation.z` polarity must wait for a real exported trace from live or replay mode rather than screenshots or assumptions alone. The follow-up replay QA also proved that source-side timing was not the only blocker: Linux sidecar runtime provisioning inside the mounted `aerobeat-input-mediapipe-python` addon path must be correct before replay can ever become healthy. Derrick then corrected the intended fix path explicitly: the right repair is to run the addon/runtime install script locally so the gitignored runtime files are present inside the addon workflow, not to change the consumer mount strategy as the primary solution. The next manual regression report added three more truths: project-open warnings are still present, the enlarged UI pass regressed usability by hiding important controls/previews off-screen and crowding out the world preview, and both live/replay still reproduce `camera_view.gd:205 @ _connect_with_retry(): Failed to connect, status: 3`.
+**Lessons Learned:** The safe-close improvement is worth keeping, but it does not remove the need for the normal GUI stop path because the current manager intentionally does not arm in windowed editor sessions. The runtime-install contract matters: the correct repair was to prepare gitignored runtime assets inside the installed addon workflow, not to drift the consumer mount strategy. For replay diagnosis, scene-first responsive UI and bigger inspectable surfaces were much more effective than trying to keep the entire interface procedural. The remaining unknowns are now narrower: replay videos load, major mirror/config bugs are fixed, and the 3D response path is at least partially restored, but final truth still depends on manual GUI checks for clip quality, residual overlay mismatch, remaining mode-switch freezes, and the first trustworthy exported trace for `translation.z` polarity.
 
 ---
 
