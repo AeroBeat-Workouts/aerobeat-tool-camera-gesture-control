@@ -114,7 +114,6 @@ var _mediapipe_runtime_status := "inactive"
 var _mediapipe_runtime_last_error := ""
 var _mediapipe_runtime_request_serial := 0
 var _mediapipe_owned_restart_cleanup_pending := false
-var _mediapipe_owned_restart_rebuild_preview_pending := false
 var _mediapipe_controller_reattach_pending := false
 var _mediapipe_input_source_is_borrowed := false
 var _mediapipe_owned_session_key := ""
@@ -858,11 +857,11 @@ func _start_owned_mediapipe_runtime_async(request_serial: int, requested_mode: S
 	_mediapipe_runtime_signature = runtime_signature
 	_update_status("%s runtime ready" % _source_mode_label(requested_mode))
 
-func _clear_owned_mediapipe_runtime_state(rebuild_preview: bool = false) -> void:
-	_clear_owned_mediapipe_preview_state(rebuild_preview)
+func _clear_owned_mediapipe_runtime_state() -> void:
+	_clear_owned_mediapipe_preview_state()
 	_teardown_owned_mediapipe_input_source_for_restart()
 
-func _clear_owned_mediapipe_preview_state(rebuild_preview: bool = false) -> void:
+func _clear_owned_mediapipe_preview_state() -> void:
 	_latest_pose_landmarks.clear()
 	if _tracking_overlay != null:
 		_tracking_overlay.clear_snapshot()
@@ -870,21 +869,16 @@ func _clear_owned_mediapipe_preview_state(rebuild_preview: bool = false) -> void
 		_mediapipe_camera_view.update_overlay([])
 	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming()):
 		_mediapipe_camera_view.stop_stream()
-	if rebuild_preview:
-		_rebuild_mediapipe_camera_view()
 
-func _mark_owned_mediapipe_restart_cleanup_pending(rebuild_preview: bool) -> void:
+func _mark_owned_mediapipe_restart_cleanup_pending() -> void:
 	_mediapipe_owned_restart_cleanup_pending = true
-	_mediapipe_owned_restart_rebuild_preview_pending = rebuild_preview
 	_mediapipe_runtime_status = "stopping"
 
 func _complete_owned_mediapipe_restart_cleanup_if_pending() -> void:
 	if not _mediapipe_owned_restart_cleanup_pending:
 		return
-	var rebuild_preview := _mediapipe_owned_restart_rebuild_preview_pending
 	_mediapipe_owned_restart_cleanup_pending = false
-	_mediapipe_owned_restart_rebuild_preview_pending = false
-	_clear_owned_mediapipe_preview_state(rebuild_preview)
+	_clear_owned_mediapipe_preview_state()
 	_teardown_owned_mediapipe_input_source_for_restart()
 
 func _detach_controller_from_input_source_for_restart(source: Node) -> void:
@@ -934,7 +928,7 @@ func _restart_owned_mediapipe_server_for_request(requested_mode: String) -> bool
 	if _mediapipe_autostart_manager == null or not is_instance_valid(_mediapipe_autostart_manager):
 		return false
 	var requested_override := _requested_mediapipe_camera_source_override(requested_mode)
-	_mark_owned_mediapipe_restart_cleanup_pending(requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE)
+	_mark_owned_mediapipe_restart_cleanup_pending()
 	_mediapipe_autostart_manager.camera_source_override = requested_override
 	if requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE and _mediapipe_input_source != null and is_instance_valid(_mediapipe_input_source) and _mediapipe_input_source.has_method("set_selected_camera_device_id"):
 		_mediapipe_input_source.set_selected_camera_device_id(requested_override)
