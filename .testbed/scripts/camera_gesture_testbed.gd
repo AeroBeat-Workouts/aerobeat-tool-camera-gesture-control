@@ -830,7 +830,7 @@ func _start_owned_mediapipe_runtime_async(request_serial: int, requested_mode: S
 	_mediapipe_runtime_status = "starting"
 	_mediapipe_runtime_last_error = ""
 	if needs_restart:
-		_clear_owned_mediapipe_runtime_state()
+		_clear_owned_mediapipe_runtime_state(requested_mode == SOURCE_MODE_MEDIAPIPE_LIVE)
 		started = bool(await _restart_owned_mediapipe_server_for_request(requested_mode))
 	elif _mediapipe_autostart_manager.has_method("is_server_running") and not bool(_mediapipe_autostart_manager.is_server_running()):
 		started = bool(await _mediapipe_autostart_manager.start_server())
@@ -855,7 +855,7 @@ func _start_owned_mediapipe_runtime_async(request_serial: int, requested_mode: S
 	_mediapipe_runtime_signature = runtime_signature
 	_update_status("%s runtime ready" % _source_mode_label(requested_mode))
 
-func _clear_owned_mediapipe_runtime_state() -> void:
+func _clear_owned_mediapipe_runtime_state(rebuild_preview: bool = false) -> void:
 	_latest_pose_landmarks.clear()
 	if _tracking_overlay != null:
 		_tracking_overlay.clear_snapshot()
@@ -863,6 +863,8 @@ func _clear_owned_mediapipe_runtime_state() -> void:
 		_mediapipe_camera_view.update_overlay([])
 	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming()):
 		_mediapipe_camera_view.stop_stream()
+	if rebuild_preview:
+		_rebuild_mediapipe_camera_view()
 
 func _restart_owned_mediapipe_server_for_request(requested_mode: String) -> bool:
 	if _mediapipe_autostart_manager == null or not is_instance_valid(_mediapipe_autostart_manager):
@@ -1020,9 +1022,8 @@ func _apply_mediapipe_session_metadata(session_record: Dictionary) -> void:
 func _configure_mediapipe_camera_view_for_mode(mode: String) -> void:
 	if _mediapipe_camera_view == null:
 		return
-	if _mediapipe_camera_view.has_method("set"):
-		_mediapipe_camera_view.flip_horizontal = mode == SOURCE_MODE_MEDIAPIPE_LIVE
-		_mediapipe_camera_view.show_overlay = false
+	_set_object_property_if_present(_mediapipe_camera_view, "flip_horizontal", mode == SOURCE_MODE_MEDIAPIPE_LIVE)
+	_set_object_property_if_present(_mediapipe_camera_view, "show_overlay", false)
 
 func _on_mediapipe_server_progress(_percentage: int, message: String) -> void:
 	_mediapipe_runtime_status = message
@@ -1659,6 +1660,8 @@ func _build_media_inset_status_line() -> String:
 	return "Inset: MediaPipe camera view seam unavailable; overlay-only fallback"
 
 func _refresh_media_inset_surface() -> void:
+	if _is_mediapipe_mode(_source_mode) and _mediapipe_camera_view == null:
+		_ensure_mediapipe_camera_view_if_possible()
 	var wants_mediapipe_view := _is_mediapipe_mode(_source_mode) and _mediapipe_camera_view != null
 	if wants_mediapipe_view and _mediapipe_camera_view.has_method("start_stream"):
 		call_deferred("_ensure_mediapipe_camera_stream")
@@ -1668,7 +1671,11 @@ func _refresh_media_inset_surface() -> void:
 	_media_placeholder_label.text = _build_media_placeholder_text()
 
 func _ensure_mediapipe_camera_stream() -> void:
-	if not _is_mediapipe_mode(_source_mode) or _mediapipe_camera_view == null:
+	if not _is_mediapipe_mode(_source_mode):
+		return
+	if _mediapipe_camera_view == null:
+		_ensure_mediapipe_camera_view_if_possible()
+	if _mediapipe_camera_view == null:
 		return
 	if _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming()):
 		_media_inset_placeholder.visible = false
@@ -1691,20 +1698,99 @@ func _build_media_placeholder_text() -> String:
 Waiting for live camera preview stream from %s." % _build_active_camera_text()
 
 func _ensure_mediapipe_camera_view_if_possible() -> void:
-	if not ResourceLoader.exists(MEDIAPIPE_CAMERA_VIEW_PATH):
+	if _mediapipe_camera_view != null and is_instance_valid(_mediapipe_camera_view):
 		return
-	var camera_view_script: GDScript = load(MEDIAPIPE_CAMERA_VIEW_PATH)
+	_rebuild_mediapipe_camera_view()
+
+func _rebuild_mediapipe_camera_view() -> bool:
+	if _camera_feed_host == null:
+		return false
+	var previous_view = _mediapipe_camera_view if _mediapipe_camera_view != null and is_instance_valid(_mediapipe_camera_view) else null
+	var camera_view_script: Variant = null
+	if previous_view != null:
+		camera_view_script = previous_view.get_script()
 	if camera_view_script == null:
+		if not ResourceLoader.exists(MEDIAPIPE_CAMERA_VIEW_PATH):
+			return false
+		camera_view_script = load(MEDIAPIPE_CAMERA_VIEW_PATH)
+	if camera_view_script == null:
+		return false
+	var rebuilt_view = camera_view_script.new()
+	if rebuilt_view == null:
+		return false
+	var built_view = rebuilt_view
+	built_view.name = "MediaPipeCameraView"
+	_apply_mediapipe_camera_view_defaults(built_view)
+	if previous_view != null:
+		_copy_mediapipe_camera_view_layout(previous_view, built_view)
+		if previous_view.get_parent() != null:
+			previous_view.replace_by(built_view)
+		else:
+			_camera_feed_host.add_child(built_view)
+	else:
+		_camera_feed_host.add_child(built_view)
+		_camera_feed_host.move_child(built_view, 0)
+	_mediapipe_camera_view = built_view
+	_configure_mediapipe_camera_view_for_mode(_source_mode)
+	if _mediapipe_camera_view.has_method("update_overlay"):
+		_mediapipe_camera_view.update_overlay(_latest_pose_landmarks)
+	if previous_view != null and previous_view != built_view:
+		if previous_view.has_method("is_streaming") and bool(previous_view.is_streaming()) and previous_view.has_method("stop_stream"):
+			previous_view.stop_stream()
+		previous_view.queue_free()
+	return true
+
+func _apply_mediapipe_camera_view_defaults(camera_view: Variant) -> void:
+	if camera_view == null:
 		return
-	_mediapipe_camera_view = camera_view_script.new()
-	_mediapipe_camera_view.name = "MediaPipeCameraView"
-	_mediapipe_camera_view.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_mediapipe_camera_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_mediapipe_camera_view.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_mediapipe_camera_view.stream_url = DEFAULT_MEDIAPIPE_STREAM_URL
-	_mediapipe_camera_view.show_overlay = false
-	_camera_feed_host.add_child(_mediapipe_camera_view)
-	_camera_feed_host.move_child(_mediapipe_camera_view, 0)
+	if camera_view is Control:
+		camera_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_set_object_property_if_present(camera_view, "expand_mode", TextureRect.EXPAND_IGNORE_SIZE)
+	_set_object_property_if_present(camera_view, "stretch_mode", TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
+	_set_object_property_if_present(camera_view, "stream_url", DEFAULT_MEDIAPIPE_STREAM_URL)
+	_set_object_property_if_present(camera_view, "show_overlay", false)
+
+func _copy_mediapipe_camera_view_layout(previous_view: Variant, next_view: Variant) -> void:
+	if previous_view == null or next_view == null:
+		return
+	if previous_view is Control and next_view is Control:
+		next_view.anchor_left = previous_view.anchor_left
+		next_view.anchor_top = previous_view.anchor_top
+		next_view.anchor_right = previous_view.anchor_right
+		next_view.anchor_bottom = previous_view.anchor_bottom
+		next_view.offset_left = previous_view.offset_left
+		next_view.offset_top = previous_view.offset_top
+		next_view.offset_right = previous_view.offset_right
+		next_view.offset_bottom = previous_view.offset_bottom
+		next_view.custom_minimum_size = previous_view.custom_minimum_size
+		next_view.layout_mode = previous_view.layout_mode
+		next_view.size_flags_horizontal = previous_view.size_flags_horizontal
+		next_view.size_flags_vertical = previous_view.size_flags_vertical
+		next_view.size_flags_stretch_ratio = previous_view.size_flags_stretch_ratio
+	_set_object_property_if_present(next_view, "expand_mode", _get_object_property_if_present(previous_view, "expand_mode", TextureRect.EXPAND_IGNORE_SIZE))
+	_set_object_property_if_present(next_view, "stretch_mode", _get_object_property_if_present(previous_view, "stretch_mode", TextureRect.STRETCH_KEEP_ASPECT_CENTERED))
+	_set_object_property_if_present(next_view, "stream_url", _get_object_property_if_present(previous_view, "stream_url", DEFAULT_MEDIAPIPE_STREAM_URL))
+	_set_object_property_if_present(next_view, "show_overlay", false)
+
+func _get_object_property_if_present(target: Variant, property_name: String, fallback: Variant = null) -> Variant:
+	if target == null:
+		return fallback
+	for property_data_variant: Variant in target.get_property_list():
+		if not property_data_variant is Dictionary:
+			continue
+		if String((property_data_variant as Dictionary).get("name", "")) == property_name:
+			return target.get(property_name)
+	return fallback
+
+func _set_object_property_if_present(target: Variant, property_name: String, value: Variant) -> void:
+	if target == null:
+		return
+	for property_data_variant: Variant in target.get_property_list():
+		if not property_data_variant is Dictionary:
+			continue
+		if String((property_data_variant as Dictionary).get("name", "")) == property_name:
+			target.set(property_name, value)
+			return
 
 func _wire_mediapipe_backend_if_possible() -> void:
 	if _mediapipe_input_source == null or not is_instance_valid(_mediapipe_input_source):

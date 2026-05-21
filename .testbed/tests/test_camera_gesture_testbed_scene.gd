@@ -3,9 +3,10 @@ extends GutTest
 const TRACE_STORE_SCRIPT := preload("res://scripts/trace_capture_store.gd")
 
 class FakeCameraView:
-	extends Control
+	extends TextureRect
 
 	var start_stream_call_count := 0
+	var overlay_updates: Array = []
 	var _streaming := false
 
 	func start_stream() -> bool:
@@ -18,6 +19,9 @@ class FakeCameraView:
 
 	func stop_stream() -> void:
 		_streaming = false
+
+	func update_overlay(landmarks: Array) -> void:
+		overlay_updates.append(landmarks.duplicate(true))
 
 	func _get_displayed_image_size() -> Vector2:
 		return size if size.x > 0.0 and size.y > 0.0 else Vector2(640.0, 480.0)
@@ -353,8 +357,14 @@ func test_live_camera_runtime_restart_uses_restart_server_and_waits_for_stream_r
 	add_child_autofree(instance)
 	var manager := FakeAutoStartManager.new()
 	add_child_autofree(manager)
+	var existing_camera_view = instance.get("_mediapipe_camera_view")
+	if existing_camera_view != null and is_instance_valid(existing_camera_view):
+		existing_camera_view.queue_free()
+		await get_tree().process_frame
 	var camera_view := FakeCameraView.new()
-	add_child_autofree(camera_view)
+	var camera_feed_host := instance.get("_camera_feed_host") as Control
+	camera_feed_host.add_child(camera_view)
+	camera_feed_host.move_child(camera_view, 0)
 	instance.set("_mediapipe_autostart_manager", manager)
 	instance.set("_mediapipe_camera_view", camera_view)
 	var input_source := FakeSelectableInputSource.new()
@@ -369,7 +379,10 @@ func test_live_camera_runtime_restart_uses_restart_server_and_waits_for_stream_r
 	assert_eq(manager.restart_server_last_override, "/dev/video7", "Live camera switch should restart the owned runtime with the newly selected camera override")
 	assert_eq(input_source.set_selected_camera_device_id_call_count, 1, "Live camera switch should also push the chosen device into the active input source before restart")
 	assert_eq(String(input_source.selected_camera_device_id), "/dev/video7", "Live camera switch should keep the active input source aligned with the chosen camera")
-	assert_eq(camera_view.start_stream_call_count, 1, "Owned runtime restart should wait for the preview stream to be started again before declaring readiness")
+	var rebuilt_camera_view = instance.get("_mediapipe_camera_view") as FakeCameraView
+	assert_false(rebuilt_camera_view == camera_view, "Live camera switch should rebuild the preview widget instead of reusing stale view state")
+	assert_eq(rebuilt_camera_view.start_stream_call_count, 1, "Owned runtime restart should wait for the rebuilt preview stream to be started again before declaring readiness")
+	assert_eq(camera_view.start_stream_call_count, 0, "Old preview widget should be replaced rather than restarted in place")
 	assert_eq(String(instance.get("_mediapipe_runtime_status")), "ready", "Owned runtime restart should only report ready after the restart choreography finishes")
 
 func test_live_camera_runtime_restart_falls_back_to_stop_start_and_preserves_camera_override() -> void:
@@ -378,8 +391,14 @@ func test_live_camera_runtime_restart_falls_back_to_stop_start_and_preserves_cam
 	add_child_autofree(instance)
 	var manager := FakeFallbackAutoStartManager.new()
 	add_child_autofree(manager)
+	var existing_camera_view = instance.get("_mediapipe_camera_view")
+	if existing_camera_view != null and is_instance_valid(existing_camera_view):
+		existing_camera_view.queue_free()
+		await get_tree().process_frame
 	var camera_view := FakeCameraView.new()
-	add_child_autofree(camera_view)
+	var camera_feed_host := instance.get("_camera_feed_host") as Control
+	camera_feed_host.add_child(camera_view)
+	camera_feed_host.move_child(camera_view, 0)
 	var input_source := FakeSelectableInputSource.new()
 	add_child_autofree(input_source)
 	instance.set("_mediapipe_autostart_manager", manager)
@@ -395,5 +414,7 @@ func test_live_camera_runtime_restart_falls_back_to_stop_start_and_preserves_cam
 	assert_eq(String(manager.camera_source_override), "/dev/video5", "Fallback restart path should preserve the selected camera override for the restarted sidecar")
 	assert_eq(input_source.set_selected_camera_device_id_call_count, 1, "Fallback restart path should keep the active input source camera source aligned with the selected live camera")
 	assert_eq(String(input_source.selected_camera_device_id), "/dev/video5")
-	assert_eq(camera_view.start_stream_call_count, 1, "Fallback restart path should still wait for the preview stream to become ready")
+	var rebuilt_camera_view = instance.get("_mediapipe_camera_view") as FakeCameraView
+	assert_false(rebuilt_camera_view == camera_view, "Fallback restart path should also rebuild the preview widget before streaming resumes")
+	assert_eq(rebuilt_camera_view.start_stream_call_count, 1, "Fallback restart path should still wait for the rebuilt preview stream to become ready")
 	assert_eq(String(instance.get("_mediapipe_runtime_status")), "ready")
