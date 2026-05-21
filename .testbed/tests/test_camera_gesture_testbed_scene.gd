@@ -86,6 +86,15 @@ class FakeSelectableInputSource:
 	var set_selected_camera_device_id_call_count := 0
 	var stop_call_count := 0
 
+	func is_tracking() -> bool:
+		return true
+
+	func get_head_position() -> Vector3:
+		return Vector3(0.5, 0.5, 0.0)
+
+	func get_tracking_confidence(_joint := &"head") -> float:
+		return 1.0
+
 	func set_selected_camera_device_id(device_id: String) -> bool:
 		set_selected_camera_device_id_call_count += 1
 		selected_camera_device_id = device_id
@@ -445,13 +454,19 @@ func test_tracking_quality_restart_recreates_owned_input_source_after_stop_bound
 	instance.set("_mediapipe_camera_view", camera_view)
 	instance.set("_mediapipe_input_source", input_source)
 	instance.set("_source_mode", "mediapipe_live")
+	instance.set("_current_input_source", input_source)
+	var controller := instance.get("_controller") as CameraGestureController
+	assert_true(controller.attach_input_source(input_source), "Tracking-quality restart test should start with the controller bound to the stale owned provider")
 	instance.set("_selected_mediapipe_live_camera_id", "/dev/video3")
 	instance.set("_selected_mediapipe_tracking_quality", "optimized")
 	instance.set("_mediapipe_runtime_signature", "mediapipe_live|/dev/video3|full|1")
 	await instance.call("_start_owned_mediapipe_runtime_async", 0, "mediapipe_live")
 	assert_eq(manager.restart_server_call_count, 1, "Tracking-quality change should still route through owned-runtime restart")
 	assert_eq(input_source.stop_call_count, 1, "Tracking-quality restart should stop the stale owned input source before recreating it")
-	assert_false(instance.get("_mediapipe_input_source") == input_source, "Tracking-quality restart should recreate the owned input source instead of hot-reusing the stale one")
+	var restarted_input_source = instance.get("_mediapipe_input_source")
+	assert_false(restarted_input_source == input_source, "Tracking-quality restart should recreate the owned input source instead of hot-reusing the stale one")
+	assert_eq(instance.get("_current_input_source"), restarted_input_source, "Tracking-quality restart should replace the scene's active input-source pointer after the owned provider is rebuilt")
+	assert_eq(String(controller.get_debug_state().get("input_source_path", "")), str(restarted_input_source.get_path()), "Tracking-quality restart should rebind the controller to the rebuilt provider instead of leaving it attached to the freed one")
 	var rebuilt_camera_view = instance.get("_mediapipe_camera_view") as FakeCameraView
 	assert_false(rebuilt_camera_view == camera_view, "Tracking-quality restart should rebuild the preview widget after cleanup")
 	assert_eq(rebuilt_camera_view.start_stream_call_count, 1, "Tracking-quality restart should wait for the rebuilt preview stream before reporting ready")

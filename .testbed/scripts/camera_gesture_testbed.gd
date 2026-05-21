@@ -115,6 +115,7 @@ var _mediapipe_runtime_last_error := ""
 var _mediapipe_runtime_request_serial := 0
 var _mediapipe_owned_restart_cleanup_pending := false
 var _mediapipe_owned_restart_rebuild_preview_pending := false
+var _mediapipe_controller_reattach_pending := false
 var _mediapipe_input_source_is_borrowed := false
 var _mediapipe_owned_session_key := ""
 var _mediapipe_borrowed_session_key := ""
@@ -852,6 +853,7 @@ func _start_owned_mediapipe_runtime_async(request_serial: int, requested_mode: S
 			_mediapipe_runtime_last_error = "runtime did not become ready before timeout"
 		_update_status("Failed to stabilize %s runtime" % _source_mode_label(requested_mode))
 		return
+	_reattach_controller_to_mediapipe_input_source_if_needed(requested_mode)
 	_mediapipe_runtime_status = "ready"
 	_mediapipe_runtime_signature = runtime_signature
 	_update_status("%s runtime ready" % _source_mode_label(requested_mode))
@@ -885,10 +887,33 @@ func _complete_owned_mediapipe_restart_cleanup_if_pending() -> void:
 	_clear_owned_mediapipe_preview_state(rebuild_preview)
 	_teardown_owned_mediapipe_input_source_for_restart()
 
+func _detach_controller_from_input_source_for_restart(source: Node) -> void:
+	if source == null or _controller == null:
+		return
+	if _current_input_source != source:
+		return
+	_controller.detach_input_source()
+	_current_input_source = null
+	_mediapipe_controller_reattach_pending = true
+
+func _reattach_controller_to_mediapipe_input_source_if_needed(requested_mode: String) -> void:
+	if _controller == null:
+		return
+	if not _is_mediapipe_mode(requested_mode):
+		return
+	if _mediapipe_input_source == null or not is_instance_valid(_mediapipe_input_source):
+		return
+	if not _mediapipe_controller_reattach_pending and _current_input_source == _mediapipe_input_source:
+		return
+	if _controller.attach_input_source(_mediapipe_input_source):
+		_current_input_source = _mediapipe_input_source
+		_mediapipe_controller_reattach_pending = false
+
 func _teardown_owned_mediapipe_input_source_for_restart() -> void:
 	if _mediapipe_input_source == null or not is_instance_valid(_mediapipe_input_source) or _mediapipe_input_source_is_borrowed:
 		return
 	var owned_source := _mediapipe_input_source
+	_detach_controller_from_input_source_for_restart(owned_source)
 	var registry = _load_provider_session_registry()
 	if registry != null and not _mediapipe_owned_session_key.is_empty():
 		registry.unpublish_session(MEDIAPIPE_SESSION_OWNER_ID, _mediapipe_owned_session_key)
