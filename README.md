@@ -94,11 +94,30 @@ Current honest limitation: cross-lane duplicate-prevention only works when the o
 
 ## Dev/test flow
 
-Restore hidden testbed dependencies:
+Refresh the hidden testbed workbench and prepare the mounted MediaPipe runtime for local `linux-x64` dev use:
 
 ```bash
-cd .testbed
-godotenv addons install
+python3 scripts/refresh_testbed_workbench.py
+```
+
+That repo-owned workflow does four things in order:
+
+1. runs `godotenv addons install` in `.testbed/`
+2. discards generated `.testbed/addons/*` and `.testbed/.addons/*` mirrors for declared addons, then prunes stale generated addon entries and clears relevant Godot caches
+3. re-imports the `.testbed` project headlessly
+4. runs the mounted addon's documented runtime prep command from `/.testbed/addons/aerobeat-input-mediapipe-python/`:
+   `python3 python_mediapipe/prepare_runtime.py --platform linux-x64 --mode dev --install-requirements --validate`
+
+Required runtime artifacts are then verified under:
+
+- `.testbed/addons/aerobeat-input-mediapipe-python/python_mediapipe/assets/runtimes/linux-x64/runtime-manifest.json`
+- `.testbed/addons/aerobeat-input-mediapipe-python/python_mediapipe/assets/runtimes/linux-x64/.runtime-ready`
+- `.testbed/addons/aerobeat-input-mediapipe-python/python_mediapipe/assets/runtimes/linux-x64/venv/bin/python`
+
+If you only need the old addon-restore/import portion without rerunning runtime prep, use:
+
+```bash
+python3 scripts/refresh_testbed_workbench.py --skip-runtime-prep
 ```
 
 Open the proving workbench:
