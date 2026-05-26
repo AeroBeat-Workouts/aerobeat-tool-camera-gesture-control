@@ -19,6 +19,18 @@
       "checkout": "main",
       "subfolder": "/"
     },
+    // Playback facade for repo-owned replay preview wiring inside the hidden testbed.
+    "aerobeat-tool-video-player": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-video-player.git",
+      "checkout": "main",
+      "subfolder": "/"
+    },
+    // Concrete Godot playback backend injected behind the repo-owned video-player facade.
+    "aerobeat-vendor-godot-video": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-vendor-godot-video.git",
+      "checkout": "main",
+      "subfolder": "/"
+    },
     // Dev-only headless quit listener used for approved headless runs.
     "aerobeat-tool-headless-manager": {
       "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-headless-manager.git",

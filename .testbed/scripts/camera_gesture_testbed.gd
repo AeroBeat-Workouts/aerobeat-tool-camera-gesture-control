@@ -14,6 +14,8 @@ const DEFAULT_FIXTURE_SIDECAR_PATH := "res://assets/fixtures/camera_gesture/head
 const MEDIAPIPE_PROVIDER_PATH := "res://addons/aerobeat-input-mediapipe-python/src/input_provider.gd"
 const MEDIAPIPE_CAMERA_VIEW_PATH := "res://addons/aerobeat-input-mediapipe-python/src/camera_view.gd"
 const MEDIAPIPE_AUTOSTART_MANAGER_PATH := "res://addons/aerobeat-input-mediapipe-python/src/autostart_manager.gd"
+const VIDEO_PLAYER_MANAGER_PATH := "res://addons/aerobeat-tool-video-player/src/AeroVideoPlayerManager.gd"
+const GODOT_VIDEO_BACKEND_PATH := "res://addons/aerobeat-vendor-godot-video/src/AeroGodotVideoBackend.gd"
 const PROVIDER_SESSION_REGISTRY_PATH := "res://addons/aerobeat-input-core/src/runtime/provider_session_registry.gd"
 const DEFAULT_MEDIAPIPE_STREAM_URL := "http://127.0.0.1:4243/camera"
 const DEFAULT_TESTBED_VIEWPORT_SIZE := Vector2i(960, 540)
@@ -109,6 +111,10 @@ var _mediapipe_input_source: Node = null
 var _mediapipe_provider_backend: Node = null
 var _mediapipe_camera_view = null
 var _mediapipe_autostart_manager: Node = null
+var _video_player_manager: Node = null
+var _video_player_surface: Control = null
+var _video_player_last_loaded_source := ""
+var _video_player_last_error := ""
 var _mediapipe_runtime_signature := ""
 var _mediapipe_runtime_status := "inactive"
 var _mediapipe_runtime_last_error := ""
@@ -190,6 +196,7 @@ func _notification(what: int) -> void:
 		return
 	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("stop_stream"):
 		_mediapipe_camera_view.stop_stream()
+	_reset_video_player_surface()
 	_teardown_mediapipe_runtime()
 
 func _bind_layout_nodes() -> void:
@@ -1707,6 +1714,8 @@ func _current_tracking_overlay_display_rect() -> Rect2:
 	var overlay_size := _tracking_overlay.size
 	if overlay_size.x <= 0.0 or overlay_size.y <= 0.0:
 		return Rect2(Vector2.ZERO, overlay_size)
+	if _source_mode == SOURCE_MODE_MEDIAPIPE_REPLAY and _video_player_surface != null and is_instance_valid(_video_player_surface) and _video_player_surface.visible:
+		return Rect2(Vector2.ZERO, overlay_size)
 	if _mediapipe_camera_view == null or not is_instance_valid(_mediapipe_camera_view):
 		return Rect2(Vector2.ZERO, overlay_size)
 	var displayed_size_value: Variant = _mediapipe_camera_view.call("_get_displayed_image_size")
@@ -1722,8 +1731,12 @@ func _current_tracking_overlay_display_rect() -> Rect2:
 func _build_media_inset_status_line() -> String:
 	if _source_mode == SOURCE_MODE_FAKE:
 		return "Inset: fake source preview with tracking overlay"
+	if _source_mode == SOURCE_MODE_MEDIAPIPE_REPLAY and _is_video_player_replay_ready():
+		return "Inset: MediaPipe replay via AeroVideoPlayerManager + tracking overlay (%s)" % _build_tracking_quality_compact_text()
 	if _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming()):
 		return "Inset: %s feed live + tracking overlay (%s)" % [_source_mode_label(_source_mode), _build_tracking_quality_compact_text()]
+	if _source_mode == SOURCE_MODE_MEDIAPIPE_REPLAY and _video_player_last_error != "":
+		return "Inset: replay delegated to AeroVideoPlayerManager, waiting on video load (%s)" % _video_player_last_error
 	if _mediapipe_camera_view != null:
 		return "Inset: %s requested, waiting for stream (%s | %s)" % [_source_mode_label(_source_mode), _build_active_camera_text(), _mediapipe_runtime_status]
 	return "Inset: MediaPipe camera view seam unavailable; overlay-only fallback"
@@ -1731,12 +1744,22 @@ func _build_media_inset_status_line() -> String:
 func _refresh_media_inset_surface() -> void:
 	if _is_mediapipe_mode(_source_mode) and _mediapipe_camera_view == null:
 		_ensure_mediapipe_camera_view_if_possible()
-	var wants_mediapipe_view := _is_mediapipe_mode(_source_mode) and _mediapipe_camera_view != null
-	if wants_mediapipe_view and _mediapipe_camera_view.has_method("start_stream"):
+	var wants_replay_surface := _source_mode == SOURCE_MODE_MEDIAPIPE_REPLAY and _ensure_video_player_surface_if_possible()
+	if wants_replay_surface:
+		_sync_replay_video_surface()
+	elif _video_player_manager != null and is_instance_valid(_video_player_manager) and _video_player_manager.has_method("unload"):
+		_video_player_manager.unload()
+		_video_player_last_loaded_source = ""
+		_video_player_last_error = ""
+	if _is_mediapipe_mode(_source_mode) and _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("start_stream"):
 		call_deferred("_ensure_mediapipe_camera_stream")
 	elif _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("stop_stream"):
 		_mediapipe_camera_view.stop_stream()
-	_media_inset_placeholder.visible = _mediapipe_camera_view == null or not (_mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming()))
+	if _mediapipe_camera_view != null and _mediapipe_camera_view is CanvasItem:
+		(_mediapipe_camera_view as CanvasItem).visible = _source_mode != SOURCE_MODE_MEDIAPIPE_REPLAY or not wants_replay_surface
+	if _video_player_surface != null and is_instance_valid(_video_player_surface):
+		_video_player_surface.visible = wants_replay_surface
+	_media_inset_placeholder.visible = not _is_active_media_surface_ready()
 	_media_placeholder_label.text = _build_media_placeholder_text()
 
 func _ensure_mediapipe_camera_stream() -> void:
@@ -1755,16 +1778,128 @@ func _ensure_mediapipe_camera_stream() -> void:
 		_media_inset_placeholder.visible = not started
 		_media_placeholder_label.text = _build_media_placeholder_text()
 
+func _is_active_media_surface_ready() -> bool:
+	if _source_mode == SOURCE_MODE_MEDIAPIPE_REPLAY:
+		if _video_player_manager != null and is_instance_valid(_video_player_manager):
+			return _is_video_player_replay_ready()
+		return _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming())
+	return _mediapipe_camera_view != null and _mediapipe_camera_view.has_method("is_streaming") and bool(_mediapipe_camera_view.is_streaming())
+
+func _is_video_player_replay_ready() -> bool:
+	if _video_player_manager == null or not is_instance_valid(_video_player_manager):
+		return false
+	if not _video_player_manager.has_method("get_state"):
+		return false
+	var state: Variant = _video_player_manager.get_state()
+	if not (state is Dictionary):
+		return false
+	return bool((state as Dictionary).get("media_loaded", false))
+
+func _ensure_video_player_surface_if_possible() -> bool:
+	if _camera_feed_host == null:
+		return false
+	if _video_player_surface == null or not is_instance_valid(_video_player_surface):
+		var surface := Control.new()
+		surface.name = "ReplayVideoSurface"
+		surface.set_anchors_preset(Control.PRESET_FULL_RECT)
+		surface.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_camera_feed_host.add_child(surface)
+		_camera_feed_host.move_child(surface, 0)
+		_video_player_surface = surface
+	if _video_player_manager != null and is_instance_valid(_video_player_manager):
+		return true
+	if not ResourceLoader.exists(VIDEO_PLAYER_MANAGER_PATH):
+		return false
+	var manager_script: GDScript = load(VIDEO_PLAYER_MANAGER_PATH)
+	if manager_script == null:
+		return false
+	var manager = manager_script.new()
+	if manager == null:
+		return false
+		
+	if ResourceLoader.exists(GODOT_VIDEO_BACKEND_PATH):
+		var backend_script: GDScript = load(GODOT_VIDEO_BACKEND_PATH)
+		if backend_script != null and manager.has_method("set_backend"):
+			manager.set_backend(backend_script.new())
+	manager.name = "ReplayVideoPlayerManager"
+	add_child(manager)
+	_video_player_manager = manager
+	if _video_player_manager.has_signal("state_changed"):
+		_video_player_manager.state_changed.connect(_on_video_player_state_changed)
+	if _video_player_manager.has_signal("media_loaded"):
+		_video_player_manager.media_loaded.connect(_on_video_player_media_loaded)
+	if _video_player_manager.has_signal("error_raised"):
+		_video_player_manager.error_raised.connect(_on_video_player_error_raised)
+	if _video_player_manager.has_method("attach_surface"):
+		_video_player_manager.attach_surface(_video_player_surface)
+	return true
+
+func _sync_replay_video_surface() -> void:
+	if _video_player_manager == null or not is_instance_valid(_video_player_manager):
+		return
+	var replay_source_path := _requested_mediapipe_camera_source_override(SOURCE_MODE_MEDIAPIPE_REPLAY)
+	if replay_source_path.is_empty():
+		return
+	if _video_player_manager.has_method("attach_surface"):
+		_video_player_manager.attach_surface(_video_player_surface)
+	if replay_source_path == _video_player_last_loaded_source and _is_video_player_replay_ready():
+		if _video_player_manager.has_method("play"):
+			_video_player_manager.play()
+		return
+	if _video_player_manager.has_method("load"):
+		_video_player_last_error = ""
+		_video_player_last_loaded_source = replay_source_path
+		_video_player_manager.load({
+			"path": replay_source_path,
+			"autoplay": true,
+			"loop": true,
+			"metadata": {
+				"source_mode": SOURCE_MODE_MEDIAPIPE_REPLAY,
+				"fixture_key": _fixture_key_edit.text.strip_edges(),
+				"delegated_owner": "aerobeat-tool-video-player",
+			}
+		})
+
+func _reset_video_player_surface() -> void:
+	_video_player_last_loaded_source = ""
+	_video_player_last_error = ""
+	if _video_player_manager != null and is_instance_valid(_video_player_manager) and _video_player_manager.has_method("unload"):
+		_video_player_manager.unload()
+	if _video_player_manager != null and is_instance_valid(_video_player_manager):
+		_video_player_manager.queue_free()
+	_video_player_manager = null
+	if _video_player_surface != null and is_instance_valid(_video_player_surface):
+		_video_player_surface.queue_free()
+	_video_player_surface = null
+
+func _on_video_player_state_changed(_state: String, _detail: Dictionary) -> void:
+	_media_inset_placeholder.visible = not _is_active_media_surface_ready()
+	_media_placeholder_label.text = _build_media_placeholder_text()
+
+func _on_video_player_media_loaded(_info: Dictionary) -> void:
+	_video_player_last_error = ""
+	_media_inset_placeholder.visible = not _is_active_media_surface_ready()
+	_media_placeholder_label.text = _build_media_placeholder_text()
+
+func _on_video_player_error_raised(error_info: Dictionary) -> void:
+	_video_player_last_error = str(error_info.get("message", "video player load failed"))
+	_media_inset_placeholder.visible = not _is_active_media_surface_ready()
+	_media_placeholder_label.text = _build_media_placeholder_text()
+
 func _build_media_placeholder_text() -> String:
 	if _source_mode == SOURCE_MODE_FAKE:
 		return "Fake source active\nTracking overlay shows normalized head motion."
-	if _mediapipe_camera_view == null:
-		return "MediaPipe camera view not mounted in this addon seam yet.\nTracking overlay still shows controller-relevant motion."
 	if _source_mode == SOURCE_MODE_MEDIAPIPE_REPLAY:
 		var effective_video: Dictionary = _fixture_runtime_config.get("effective_video", {}) if _fixture_runtime_config.get("effective_video", {}) is Dictionary else {}
-		return "MediaPipe replay selected\nWaiting for fixture stream: %s" % str(effective_video.get("display_path", _fixture_video_path_edit.text.strip_edges()))
-	return "MediaPipe live selected
-Waiting for live camera preview stream from %s." % _build_active_camera_text()
+		var replay_path := str(effective_video.get("display_path", _fixture_video_path_edit.text.strip_edges()))
+		if _video_player_last_error != "":
+			return "Replay delegated to AeroVideoPlayerManager\nVideo load is still pending: %s\nFixture: %s" % [_video_player_last_error, replay_path]
+		if _video_player_manager == null or not is_instance_valid(_video_player_manager):
+			return "Replay delegated to AeroVideoPlayerManager\nWaiting for replay surface mount: %s" % replay_path
+		return "Replay delegated to AeroVideoPlayerManager\nWaiting for fixture playback: %s" % replay_path
+	if _mediapipe_camera_view == null:
+		return "MediaPipe camera view not mounted in this addon seam yet.\nTracking overlay still shows controller-relevant motion."
+	return "MediaPipe live selected\nWaiting for live camera preview stream from %s." % _build_active_camera_text()
 
 func _ensure_mediapipe_camera_view_if_possible() -> void:
 	if _mediapipe_camera_view != null and is_instance_valid(_mediapipe_camera_view):
