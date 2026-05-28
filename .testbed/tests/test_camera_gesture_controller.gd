@@ -1,6 +1,6 @@
 extends GutTest
 
-const CONTROLLER_SCRIPT := preload("res://src/camera_gesture_controller.gd")
+const CONTROLLER_SCRIPT := preload("res://addons/aerobeat-tool-camera-gesture-control/src/camera_gesture_controller.gd")
 const FAKE_INPUT_SOURCE_SCRIPT := preload("res://scripts/fake_camera_input_source.gd")
 const PROFILE_PATH := "user://test_camera_gesture_profile.camera_gesture.yaml"
 const LEGACY_JSON_PROFILE_PATH := "user://test_camera_gesture_profile_legacy.json"

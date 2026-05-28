@@ -1,6 +1,6 @@
 extends Control
 
-const CONTROLLER_SCRIPT := preload("res://src/camera_gesture_controller.gd")
+const CONTROLLER_SCRIPT := preload("res://addons/aerobeat-tool-camera-gesture-control/src/camera_gesture_controller.gd")
 const FAKE_INPUT_SOURCE_SCRIPT := preload("res://scripts/fake_camera_input_source.gd")
 const TRACKING_INSET_OVERLAY_SCRIPT := preload("res://scripts/tracking_inset_overlay.gd")
 const TRACE_CAPTURE_STORE_SCRIPT := preload("res://scripts/trace_capture_store.gd")
