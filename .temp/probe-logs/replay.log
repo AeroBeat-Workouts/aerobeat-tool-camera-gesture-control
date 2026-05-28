@@ -1,0 +1,48 @@
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+TextServer: Added interface "Dummy"
+TextServer: Added interface "ICU / HarfBuzz / Graphite (Built-in)"
+Unrecognized output string "misc2" in mapping:
+030000008a2e0000dd10000011010000,Hand Held Legend GC Ultimate,a:b0,b:b2,back:b17,dpdown:b5,dpleft:b6,dpright:b7,dpup:b4,guide:b18,leftshoulder:b10,leftstick:b8,lefttrigger:a3,leftx:a0,lefty:a1,misc1:b19,misc2:b24,paddle1:b13,paddle2:b12,rightshoulder:b11,rightstick:b9,righttrigger:a4,rightx:a2,righty:a5,start:b16,x:b1,y:b3,platform:Linux,
+Unrecognized output string "misc2" in mapping:
+030000000d0f0000ab01000011010000,Horipad Steam,a:b0,b:b1,back:b10,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b12,leftshoulder:b6,leftstick:b13,lefttrigger:a5,leftx:a0,lefty:a1,misc2:b2,paddle1:b19,paddle2:b18,paddle3:b15,paddle4:b5,rightshoulder:b7,rightstick:b14,righttrigger:a4,rightx:a2,righty:a3,start:b11,x:b3,y:b4,platform:Linux,
+Unrecognized output string "misc2" in mapping:
+050000000d0f00009601000091000000,Horipad Steam,a:b0,b:b1,back:b10,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b12,leftshoulder:b6,leftstick:b13,lefttrigger:a5,leftx:a0,lefty:a1,misc2:b2,paddle1:b19,paddle2:b18,paddle3:b15,paddle4:b5,rightshoulder:b7,rightstick:b14,righttrigger:a4,rightx:a2,righty:a3,start:b11,x:b3,y:b4,platform:Linux,
+Unrecognized output string "misc2" in mapping:
+030000007e0500006920000011010000,Nintendo Switch 2 Pro Controller,a:b0,b:b1,back:b14,dpdown:b8,dpleft:b10,dpright:b9,dpup:b11,guide:b16,leftshoulder:b12,leftstick:b15,lefttrigger:b13,leftx:a0,lefty:a1~,misc1:b17,misc2:b20,paddle1:b18,paddle2:b19,rightshoulder:b4,rightstick:b7,righttrigger:b5,rightx:a2,righty:a3~,start:b6,x:b2,y:b3,platform:Linux,
+SDL: Init OK!
+Using "default" pen tablet driver...
+
+TextServer: Primary interface set to: "ICU / HarfBuzz / Graphite (Built-in)".
+CORE API HASH: 4039755037
+EDITOR API HASH: 223528947
+Loading resource: /home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.temp/camera_gesture_startup_probe.gd
+SceneTreeFTI: traversal method DEFAULT
+Loading resource: res://addons/aerobeat-tool-headless-manager/src/AeroHeadlessManager.gd
+Loaded system CA certificates
+PROBE_MODE=mediapipe_live
+Loading resource: res://scenes/camera_gesture_testbed.tscn
+Loading resource: res://scripts/camera_gesture_testbed.gd
+PROBE_SCENE_LOAD_OK=true
+PROBE_SCENE_INSTANCE_OK=true
+Loading resource: res://addons/aerobeat-input-mediapipe-python/src/camera_view.gd
+PROBE_FIXTURE_RUNTIME_READY=true
+PROBE_FIXTURE_VIDEO=res://assets/fixtures/camera_gesture/head_pose/candidates/head_rotate_left_repeat_04_take_01.mp4
+Loading resource: res://addons/aerobeat-input-core/src/runtime/provider_session_registry.gd
+Loading resource: res://addons/aerobeat-input-mediapipe-python/src/input_provider.gd
+Loading resource: res://addons/aerobeat-input-mediapipe-python/src/providers/mediapipe_provider.gd
+Loading resource: res://addons/aerobeat-input-mediapipe-python/src/config/mediapipe_config.gd
+Loading resource: res://addons/aerobeat-input-mediapipe-python/src/server/mediapipe_server.gd
+[MediaPipeServer] Starting UDP server on port 4242
+Failed to bind socket. Error: 3.
+[MediaPipeServer] Port 4242 in use, auto-selecting alternative...
+[MediaPipeServer] UDP socket bound to 127.0.0.1:41337
+Loading resource: res://addons/aerobeat-input-mediapipe-python/src/autostart_manager.gd
+[AutoStartManager] 0% - Starting sidecar runtime validation...
+[AutoStartManager] 25% - Resolving desktop sidecar runtime...
+Loading resource: res://addons/aerobeat-input-mediapipe-python/src/runtime/desktop_sidecar_runtime.gd
+[AutoStartManager] 50% - Runtime Python found at /home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-tool-camera-gesture-control/.testbed/addons/aerobeat-input-mediapipe-python/python_mediapipe/assets/runtimes/linux-x64/venv/bin/python
+[AutoStartManager] 75% - Checking MediaPipe installation in resolved runtime...
+[AutoStartManager] 100% - Python dependencies ready
+[AutoStartManager] 100% - Model asset ready - starting server...
+Loading resource: res://addons/aerobeat-input-mediapipe-python/src/process/desktop_sidecar_launcher.gd
+[AutoStartManager] Started sidecar with strategy linux-shell-process-group and server PID 1096968 (identity: aerobeat-sidecar-autostart-mediapipe-1779550961-268465346)
