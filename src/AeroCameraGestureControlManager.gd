@@ -1,10 +1,10 @@
-class_name AeroToolManager
+class_name AeroCameraGestureControlManager
 extends Node
 
 signal initialized
 
 const VERSION: String = "0.3.0"
-const CONTROLLER_SCRIPT := preload("res://src/camera_gesture_controller.gd")
+const CONTROLLER_SCRIPT := preload("camera_gesture_controller.gd")
 const DEFAULT_CAMERA_GESTURE_PROFILE_PATH := "res://assets/profiles/camera_gesture/default_v1.camera_gesture.yaml"
 
 @export var is_active: bool = true
@@ -19,7 +19,7 @@ func _initialize() -> void:
 		return
 	_is_initialized = true
 	initialized.emit()
-	print("AeroToolManager initialized.")
+	print("AeroCameraGestureControlManager initialized.")
 
 func create_camera_gesture_controller() -> CameraGestureController:
 	return CONTROLLER_SCRIPT.new()
