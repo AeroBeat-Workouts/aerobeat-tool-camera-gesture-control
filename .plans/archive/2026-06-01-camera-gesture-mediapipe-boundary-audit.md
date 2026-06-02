@@ -1,8 +1,8 @@
 # AeroBeat Tool Camera Gesture Control
 
 **Date:** 2026-06-01  
-**Status:** In Progress  
-**Last Updated:** 2026-06-02 08:51 EDT  
+**Status:** Complete  
+**Last Updated:** 2026-06-02 08:50 EDT  
 **Blocked Reason:** None  
 **Agent:** `byte`
 
@@ -86,7 +86,7 @@ The revised plan therefore focuses on four things: (1) move repo-root `src/` ont
 
 ### Task 3: Produce audit verdict and remediation map
 
-**Bead ID:** `Pending`  
+**Bead ID:** `Audit pass after coder + QA`  
 **SubAgent:** `primary` (for `auditor` workflow role)  
 **Role:** `auditor`  
 **References:** all above  
@@ -98,9 +98,9 @@ The revised plan therefore focuses on four things: (1) move repo-root `src/` ont
 **Files Created/Deleted/Modified:**
 - `.plans/2026-06-01-camera-gesture-mediapipe-boundary-audit.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending Derrick approval.
+**Results:** Independent audit passed. Verified against the landed repo state, Derrick’s clarified requirements, and the repo-local QA evidence: repo-root `src/` now consumes `aerobeat-tool-camera-tracking`, repo-root `src/` remains clean of direct `aerobeat-vendor-mediapipe-python` knowledge, hidden `.testbed/` is the proving ground with direct GodotEnv-mounted dependencies, live and replay both flow through `CameraTracking`, replay preview is delegated through `aerobeat-tool-video-player` + `aerobeat-vendor-godot-video`, and repo-facing README/tests/docs now tell that story correctly. Non-blocking caveats recorded by audit: headless import still emits invalid ext_resource UID fallback warnings and an ObjectDB leak-at-exit warning, and local `.testbed/addons/` may still contain stale untracked residue from older installs. Neither caveat blocked signoff.
 
 ---
 
@@ -136,18 +136,18 @@ The revised plan therefore focuses on four things: (1) move repo-root `src/` ont
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Repo-root `src/` in `aerobeat-tool-camera-gesture-control` now consumes `aerobeat-tool-camera-tracking` directly for camera tracking plus live/replay control, the hidden `.testbed/` proving surface has been rewired off the old `aerobeat-input-mediapipe-python` / provider-session-registry path onto the current `CameraTracking`-based live/replay stack, and the repo-facing README/tests/docs now lock that boundary explicitly.
+**What We Built:** `aerobeat-tool-camera-gesture-control` now matches the intended ownership boundary. Repo-root `src/` consumes `aerobeat-tool-camera-tracking` directly for camera tracking plus live/replay control, the hidden `.testbed/` proving surface has been rewired off the old `aerobeat-input-mediapipe-python` / provider-session-registry path onto the current `CameraTracking`-based live/replay stack, and the repo-facing README/tests/docs now lock that boundary explicitly.
 
-**Reference Check:** `REF-01` through `REF-11` now anchor the audit scope and expected dependency chain. The first execution slice satisfied Derrick’s clarified repo-root rule by landing a direct `aerobeat-tool-camera-tracking` consumer seam in `src/`. The second execution slice satisfied the proving-ground rule by rewiring hidden `.testbed/` onto `CameraTracking`, mounting `aerobeat-vendor-mediapipe-python` only in proving, and routing replay through `aerobeat-tool-video-player` + `aerobeat-vendor-godot-video`. The final docs/tests slice satisfied the remaining repo-facing truth work by removing stale tracker-agnostic/provider-session-registry wording and asserting the new ownership model directly.
+**Reference Check:** `REF-01` through `REF-11` now anchor the audit scope and expected dependency chain. The first execution slice satisfied Derrick’s clarified repo-root rule by landing a direct `aerobeat-tool-camera-tracking` consumer seam in `src/`. The second execution slice satisfied the proving-ground rule by rewiring hidden `.testbed/` onto `CameraTracking`, mounting `aerobeat-vendor-mediapipe-python` only in proving, and routing replay through `aerobeat-tool-video-player` + `aerobeat-vendor-godot-video`. The final docs/tests slice satisfied the remaining repo-facing truth work by removing stale tracker-agnostic/provider-session-registry wording and asserting the new ownership model directly. Independent QA and independent audit both passed.
 
 **Commits:**
 - `21cfcde` - Refactor gesture control onto camera tracking boundary
 - `d5451e6` - Rewire hidden testbed onto camera tracking
-- Current docs/tests commit - Lock camera tracking boundary docs and tests
+- `5a81012` - Lock camera tracking boundary docs and tests
 
-**Lessons Learned:** Derrick’s architecture clarification mattered more than the first audit inference: repo-root `src/` was not allowed to remain merely generic. Once the runtime seam moved onto `CameraTracking`, the remaining risk was documentation/test drift preserving the old mental model. Boundary-lock tests were the cleanest way to keep that stale wording from creeping back.
+**Lessons Learned:** Derrick’s architecture clarification mattered more than the first audit inference: repo-root `src/` was not allowed to remain merely generic. Once the runtime seam moved onto `CameraTracking`, the remaining risk was documentation/test drift preserving the old mental model. Boundary-lock tests were the cleanest way to keep that stale wording from creeping back. Remaining non-blocking cleanup is operational, not architectural: stale local addon residue under `.testbed/addons/` and headless import warnings can be cleaned later without changing the boundary verdict.
 
 ---
 
