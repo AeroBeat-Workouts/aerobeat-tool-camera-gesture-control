@@ -13,22 +13,16 @@
       "checkout": "main",
       "subfolder": "/"
     },
-    // Camera-input contract boundary used only by the hidden proving testbed.
-    "aerobeat-input-core": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-input-core.git",
-      "checkout": "main",
-      "subfolder": "/"
-    },
-    // MediaPipe desktop camera source used only behind the hidden proving testbed.
-    "aerobeat-input-mediapipe-python": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-input-mediapipe-python.git",
-      "checkout": "main",
-      "subfolder": "/"
-    },
-    // Vendor-neutral tracking boundary consumed directly by repo-root src.
+    // Vendor-neutral tracking boundary consumed directly by repo-root src and the hidden proving stack.
     "aerobeat-tool-camera-tracking": {
       "url": "../../aerobeat-tool-camera-tracking",
       "source": "symlink",
+      "subfolder": "/"
+    },
+    // Real MediaPipe backend for truthful CameraTracking proving inside the hidden testbed only.
+    "aerobeat-vendor-mediapipe-python": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-vendor-mediapipe-python.git",
+      "checkout": "main",
       "subfolder": "/"
     },
     // Playback facade for repo-owned replay preview wiring inside the hidden testbed.
