@@ -25,6 +25,12 @@
       "checkout": "main",
       "subfolder": "/"
     },
+    // Vendor-neutral tracking boundary consumed directly by repo-root src.
+    "aerobeat-tool-camera-tracking": {
+      "url": "../../aerobeat-tool-camera-tracking",
+      "source": "symlink",
+      "subfolder": "/"
+    },
     // Playback facade for repo-owned replay preview wiring inside the hidden testbed.
     "aerobeat-tool-video-player": {
       "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-video-player.git",

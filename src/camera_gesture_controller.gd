@@ -12,6 +12,7 @@ const DEFAULT_PROFILE_ID := "default_v1"
 const DEFAULT_PROFILE_DISPLAY_NAME := "Default v1"
 const DEFAULT_PROFILE_DESCRIPTION := "Baseline parallax tuning for the first camera-gesture runtime slice."
 const DEFAULT_DEBUG_TRACE_LEVEL := "basic"
+const CAMERA_TRACKING_INPUT_SOURCE_SCRIPT := preload("camera_tracking_input_source.gd")
 
 const CONTROL_MODE_GESTURE := "gesture"
 const CONTROL_MODE_MOUSE_WASD := "mouse_wasd"
@@ -58,6 +59,7 @@ var _enabled := true
 var _control_mode := CONTROL_MODE_GESTURE
 var _camera: Camera3D = null
 var _input_source: Node = null
+var _camera_tracking_input_source: Node = null
 var _profile: Dictionary = DEFAULT_PROFILE.duplicate(true)
 var _last_profile_path := ""
 var _tracking_state := {
@@ -154,11 +156,36 @@ func attach_input_source(input_source: Node) -> bool:
 		return false
 	if not _validate_input_source(input_source):
 		return false
+	if _camera_tracking_input_source != null and _camera_tracking_input_source != input_source:
+		_clear_camera_tracking_input_source()
 	_input_source = input_source
 	_emit_tracking_state_if_changed(true)
 	return true
 
+func attach_camera_tracking(camera_tracking: Node) -> bool:
+	if camera_tracking == null:
+		return false
+	_clear_camera_tracking_input_source()
+	var tracking_input_source: Node = CAMERA_TRACKING_INPUT_SOURCE_SCRIPT.new()
+	if not tracking_input_source.has_method("set_tracking_session") or not bool(tracking_input_source.set_tracking_session(camera_tracking)):
+		if is_instance_valid(tracking_input_source):
+			tracking_input_source.free()
+		return false
+	_camera_tracking_input_source = tracking_input_source
+	if is_inside_tree():
+		add_child(_camera_tracking_input_source)
+	return attach_input_source(_camera_tracking_input_source)
+
+func detach_camera_tracking() -> void:
+	if _input_source == _camera_tracking_input_source:
+		_input_source = null
+	_clear_camera_tracking_input_source()
+	_emit_tracking_state_if_changed(true)
+
 func detach_input_source() -> void:
+	if _input_source == _camera_tracking_input_source:
+		detach_camera_tracking()
+		return
 	_input_source = null
 	_emit_tracking_state_if_changed(true)
 
@@ -217,7 +244,9 @@ func get_debug_state() -> Dictionary:
 		"camera_attached": _camera != null,
 		"camera_path": str(_camera.get_path()) if _camera != null else "",
 		"input_source_attached": _input_source != null,
-		"input_source_path": str(_input_source.get_path()) if _input_source != null else "",
+		"input_source_path": str(_input_source.get_path()) if _input_source != null and _input_source.is_inside_tree() else "",
+		"camera_tracking_attached": _camera_tracking_input_source != null and _input_source == _camera_tracking_input_source,
+		"camera_tracking_session_path": _camera_tracking_input_source.get_tracking_session_path() if _camera_tracking_input_source != null and _camera_tracking_input_source.has_method("get_tracking_session_path") else "",
 		"profile": get_profile(),
 		"active_profile": _active_profile_info.duplicate(true),
 		"tracking_state": _tracking_state.duplicate(true),
@@ -412,6 +441,15 @@ func _read_tracking_confidence() -> float:
 
 func _validate_input_source(input_source: Node) -> bool:
 	return input_source.has_method("is_tracking") and input_source.has_method("get_head_position")
+
+func _clear_camera_tracking_input_source() -> void:
+	if _camera_tracking_input_source == null:
+		return
+	if _camera_tracking_input_source.has_method("clear_tracking_session"):
+		_camera_tracking_input_source.clear_tracking_session()
+	if is_instance_valid(_camera_tracking_input_source):
+		_camera_tracking_input_source.queue_free()
+	_camera_tracking_input_source = null
 
 func _normalize_profile(profile: Dictionary) -> Dictionary:
 	var normalized := DEFAULT_PROFILE.duplicate(true)
