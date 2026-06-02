@@ -39,9 +39,9 @@
     },
     // Dev-only headless quit listener used for approved headless runs.
     "aerobeat-tool-headless-manager": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-headless-manager.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-tool-headless-manager",
+      "subfolder": "/",
+      "source": "symlink"
     },
     // GUT drives repo-local validation inside the hidden testbed/workbench.
     "gut": {
