@@ -1,53 +1,45 @@
 {
   "$schema": "https://chickensoft.games/schemas/addons.schema.json",
   "addons": {
-    // Install this repo into the hidden workbench the same way a consumer does.
     "aerobeat-tool-camera-gesture-control": {
       "url": "..",
       "source": "symlink",
       "subfolder": "/"
     },
-    // Shared tool/workflow baseline for tool-lane packages.
     "aerobeat-tool-core": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-core.git",
+      "url": "../../aerobeat-tool-core",
+      "subfolder": "/",
+      "source": "symlink"
+    },
+    "aerobeat-input-core": {
+      "url": "../../aerobeat-input-core",
+      "subfolder": "/",
+      "source": "symlink"
+    },
+    "aerobeat-input-mediapipe-python": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-input-mediapipe-python.git",
       "checkout": "main",
       "subfolder": "/"
     },
-    // Vendor-neutral tracking boundary consumed directly by repo-root src and the hidden proving stack.
-    "aerobeat-tool-camera-tracking": {
-      "url": "../../aerobeat-tool-camera-tracking",
-      "source": "symlink",
-      "subfolder": "/"
-    },
-    // Real MediaPipe backend for truthful CameraTracking proving inside the hidden testbed only.
-    "aerobeat-vendor-mediapipe-python": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-vendor-mediapipe-python.git",
-      "checkout": "main",
-      "subfolder": "/"
-    },
-    // Playback facade for repo-owned replay preview wiring inside the hidden testbed.
     "aerobeat-tool-video-player": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-video-player.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-tool-video-player",
+      "subfolder": "/",
+      "source": "symlink"
     },
-    // Concrete Godot playback backend injected behind the repo-owned video-player facade.
     "aerobeat-vendor-godot-video": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-vendor-godot-video.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-vendor-godot-video",
+      "subfolder": "/",
+      "source": "symlink"
     },
-    // Dev-only headless quit listener used for approved headless runs.
     "aerobeat-tool-headless-manager": {
       "url": "../../aerobeat-tool-headless-manager",
       "subfolder": "/",
       "source": "symlink"
     },
-    // GUT drives repo-local validation inside the hidden testbed/workbench.
-    "gut": {
-      "url": "git@github.com:bitwes/Gut.git",
-      "checkout": "main",
-      "subfolder": "/addons/gut"
+    "aerobeat-vendor-godot-unit-test": {
+      "url": "../../aerobeat-vendor-godot-unit-test",
+      "subfolder": "/",
+      "source": "symlink"
     }
   }
 }

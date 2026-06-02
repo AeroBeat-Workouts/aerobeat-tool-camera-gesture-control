@@ -55,7 +55,7 @@ func test_addons_manifest_includes_tracking_boundary_proving_stack() -> void:
 	assert_true(manifest_text.contains('"aerobeat-vendor-godot-video"'), "addons manifest should mount the replay playback backend")
 	assert_false(manifest_text.contains('"aerobeat-input-mediapipe-python"'), "addons manifest should no longer mount the old direct input provider seam")
 	assert_true(manifest_text.contains('"aerobeat-tool-headless-manager"'), "addons manifest should mount the headless-manager autoload dependency for approved headless runs")
-	assert_true(manifest_text.contains('"gut"'), "addons manifest should keep GUT for repo-local validation")
+	assert_true(manifest_text.contains('"aerobeat-vendor-godot-unit-test"'), "addons manifest should keep GUT for repo-local validation")
 
 func test_project_autoloads_headless_manager_with_truthful_contract() -> void:
 	var config := ConfigFile.new()
