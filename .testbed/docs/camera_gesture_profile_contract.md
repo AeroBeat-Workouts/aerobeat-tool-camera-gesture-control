@@ -26,7 +26,7 @@ It **does** own:
 It **does not** own:
 - the active `Camera3D`
 - scene paths or camera-node ownership
-- MediaPipe/session ownership
+- `CameraTracking` backend selection or vendor/runtime ownership
 - fixture replay/harness runtime state
 
 The runtime host must still provide the active `Camera3D` explicitly via `attach_camera(camera)`.
