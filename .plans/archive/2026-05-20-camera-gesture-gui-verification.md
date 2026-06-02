@@ -1,7 +1,7 @@
 # AeroBeat Camera Gesture GUI Verification
 
 **Date:** 2026-05-20  
-**Status:** In Progress  
+**Status:** Stale  
 **Agent:** Byte 🐈‍⬛
 
 ---

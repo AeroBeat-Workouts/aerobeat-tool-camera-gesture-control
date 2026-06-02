@@ -1,7 +1,7 @@
 # AeroBeat Camera Gesture Replay Hookup Fix
 
 **Date:** 2026-05-19  
-**Status:** ⚠️ Ready for GUI verification  
+**Status:** Stale  
 **Agent:** Byte 🐈‍⬛
 
 ---

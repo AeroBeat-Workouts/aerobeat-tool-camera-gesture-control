@@ -1,7 +1,7 @@
 # AeroBeat Tool Camera Gesture Control
 
 **Date:** 2026-05-20  
-**Status:** Draft  
+**Status:** Stale  
 **Agent:** Cookie 🍪
 
 ---

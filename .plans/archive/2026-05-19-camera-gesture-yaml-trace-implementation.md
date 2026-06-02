@@ -1,7 +1,7 @@
 # AeroBeat Tool Camera Gesture Control YAML + Trace Implementation
 
 **Date:** 2026-05-19  
-**Status:** In Progress  
+**Status:** Stale  
 **Agent:** Byte 🐈‍⬛
 
 ---

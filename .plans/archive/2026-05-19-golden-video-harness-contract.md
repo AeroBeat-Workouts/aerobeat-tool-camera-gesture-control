@@ -1,7 +1,7 @@
 # AeroBeat Tool Camera Gesture Control Golden Video Harness Contract
 
 **Date:** 2026-05-19  
-**Status:** In Progress  
+**Status:** Stale  
 **Agent:** Byte 🐈‍⬛
 
 ---
