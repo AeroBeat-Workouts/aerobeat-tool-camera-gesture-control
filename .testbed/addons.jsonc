@@ -16,10 +16,15 @@
       "subfolder": "/",
       "source": "symlink"
     },
-    "aerobeat-input-mediapipe-python": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-input-mediapipe-python.git",
-      "checkout": "main",
-      "subfolder": "/"
+    "aerobeat-tool-camera-tracking": {
+      "url": "../../aerobeat-tool-camera-tracking",
+      "subfolder": "/",
+      "source": "symlink"
+    },
+    "aerobeat-vendor-mediapipe-python": {
+      "url": "../../aerobeat-vendor-mediapipe-python",
+      "subfolder": "/",
+      "source": "symlink"
     },
     "aerobeat-tool-video-player": {
       "url": "../../aerobeat-tool-video-player",
